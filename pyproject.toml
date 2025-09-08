@@ -1,7 +1,16 @@
 [project]
 name = "jigsaw"
 version = "0.1.0"
-description = "Add your description here"
+description = "Kaggle competition"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "argparse>=1.4.0",
+    "ipykernel>=6.30.1",
+    "kaggle>=1.7.4.5",
+    "numpy>=2.2.6",
+    "pandas>=2.3.2",
+    "sentence-transformers>=5.1.0",
+    "types-tqdm>=4.67.0.20250809",
+    "vllm>=0.10.1.1",
+]

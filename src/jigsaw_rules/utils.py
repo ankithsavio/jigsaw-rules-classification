@@ -1,0 +1,244 @@
+import random
+
+import numpy as np
+import pandas as pd
+from cleantext import clean  # type: ignore
+from tqdm.auto import tqdm  # type: ignore
+
+from jigsaw_rules.constants import (
+    BASE_PROMPT,
+    CLEAN_TEXT,
+    COMPLETE_PHRASE,
+    NEGATIVE_ANSWER,
+    POSITIVE_ANSWER,
+)
+
+random.seed(42)
+np.random.seed(42)
+
+
+def build_prompt(row):
+    return f"""
+{BASE_PROMPT}
+
+Subreddit: r/{row["subreddit"]}
+Rule: {row["rule"]}
+Examples:
+1) {row["positive_example"]}
+{COMPLETE_PHRASE} Yes
+
+2) {row["negative_example"]}
+{COMPLETE_PHRASE} No
+
+---
+Comment: {row["body"]}
+{COMPLETE_PHRASE}"""
+
+
+def build_prompt_emb(row):
+    return f"""r/{row["subreddit"]}\nComment: {row["body"]}"""
+
+
+def cleaner(text):
+    return clean(
+        text,
+        fix_unicode=True,
+        to_ascii=True,
+        lower=False,
+        no_line_breaks=False,
+        no_urls=True,
+        no_emails=True,
+        no_phone_numbers=True,
+        no_numbers=False,
+        no_digits=False,
+        no_currency_symbols=False,
+        no_punct=False,
+        replace_with_url="<URL>",
+        replace_with_email="<EMAIL>",
+        replace_with_phone_number="<PHONE>",
+        lang="en",
+    )
+
+
+def get_dataframe_to_train(data_path):
+    train_dataset = pd.read_csv(f"{data_path}/train.csv")
+    test_dataset = (
+        pd.read_csv(f"{data_path}/test.csv")
+        .sample(frac=0.5, random_state=42)
+        .reset_index(drop=True)
+    )
+
+    flatten = []
+
+    # ---------- process train data ----------
+    train_df = train_dataset[
+        [
+            "body",
+            "rule",
+            "subreddit",
+            "rule_violation",
+            "positive_example_1",
+            "positive_example_2",
+            "negative_example_1",
+            "negative_example_2",
+        ]
+    ].copy()
+
+    # Randomly select positive and negative examples
+    ## Undersampled
+    train_df["positive_example"] = np.where(
+        np.random.rand(len(train_df)) < 0.5,
+        train_df["positive_example_1"],
+        train_df["positive_example_2"],
+    )
+    train_df["negative_example"] = np.where(
+        np.random.rand(len(train_df)) < 0.5,
+        train_df["negative_example_1"],
+        train_df["negative_example_2"],
+    )
+
+    # Delete original columns
+    train_df.drop(
+        columns=[
+            "positive_example_1",
+            "positive_example_2",
+            "negative_example_1",
+            "negative_example_2",
+        ],
+        inplace=True,
+    )
+
+    flatten.append(train_df)
+
+    # ---------- process test data ----------
+    sub_dataset = test_dataset[
+        [
+            "rule",
+            "subreddit",
+            "positive_example_1",
+            "positive_example_2",
+            "negative_example_1",
+            "negative_example_2",
+        ]
+    ].copy()
+
+    ## test data is not labelled therefore use the example to create additional data for training
+    for violation_type in ["positive", "negative"]:
+        for i in range(1, 3):
+            if violation_type == "positive":
+                # body uses the current positive_example
+                body_col = f"positive_example_{i}"
+                other_positive_col = (
+                    f"positive_example_{3 - i}"  # another positive
+                )
+                sub_dataset["body"] = sub_dataset[body_col]
+                sub_dataset["positive_example"] = sub_dataset[
+                    other_positive_col
+                ]
+                # negative_example randomly selected
+                sub_dataset["negative_example"] = np.where(
+                    np.random.rand(len(sub_dataset)) < 0.5,
+                    sub_dataset["negative_example_1"],
+                    sub_dataset["negative_example_2"],
+                )
+                sub_dataset["rule_violation"] = 1
+
+            else:  # violation_type == "negative"
+                body_col = f"negative_example_{i}"
+                other_negative_col = f"negative_example_{3 - i}"
+                sub_dataset["body"] = sub_dataset[body_col]
+                sub_dataset["negative_example"] = sub_dataset[
+                    other_negative_col
+                ]
+                sub_dataset["positive_example"] = np.where(
+                    np.random.rand(len(sub_dataset)) < 0.5,
+                    sub_dataset["positive_example_1"],
+                    sub_dataset["positive_example_2"],
+                )
+                sub_dataset["rule_violation"] = 0
+
+            # Delete the original candidate column
+            sub_dataset.drop(
+                columns=[
+                    "positive_example_1",
+                    "positive_example_2",
+                    "negative_example_1",
+                    "negative_example_2",
+                ],
+                inplace=True,
+            )
+
+            flatten.append(sub_dataset)
+
+    # merge all DataFrame
+    dataframe = pd.concat(flatten, axis=0)
+    dataframe = dataframe.drop_duplicates(ignore_index=True)
+
+    return dataframe
+
+
+def get_dataframe_to_train_emb(data_path):
+    train_dataset = pd.read_csv(f"{data_path}/train.csv")
+    test_dataset = (
+        pd.read_csv(f"{data_path}/test.csv")
+        .sample(frac=0.6, random_state=42)
+        .reset_index(drop=True)
+    )
+
+    flatten = []
+    flatten.append(
+        train_dataset[["body", "rule", "subreddit", "rule_violation"]]
+    )
+
+    for violation_type in ["positive", "negative"]:
+        for i in range(1, 3):
+            sub_dataset = test_dataset[
+                [f"{violation_type}_example_{i}", "rule", "subreddit"]
+            ].copy()
+            sub_dataset = sub_dataset.rename(
+                columns={f"{violation_type}_example_{i}": "body"}
+            )
+            sub_dataset["rule_violation"] = (
+                1 if violation_type == "positive" else 0
+            )
+            flatten.append(sub_dataset)
+
+    dataframe = pd.concat(flatten, axis=0)
+    dataframe = dataframe.drop_duplicates(ignore_index=True)
+    return dataframe
+
+
+def build_dataset(dataframe):
+    dataframe["prompt"] = dataframe.apply(build_prompt, axis=1)
+
+    columns = ["prompt"]
+    if "rule_violation" in dataframe:
+        dataframe["completion"] = dataframe["rule_violation"].map(
+            {
+                1: POSITIVE_ANSWER,
+                0: NEGATIVE_ANSWER,
+            }
+        )
+        columns.append("completion")
+
+    dataframe = dataframe[columns]
+    dataframe.to_csv("/kaggle/working/dataset.csv", index=False)
+    return dataframe
+
+
+def build_dataset_emb(dataframe):
+    dataframe["prompt"] = dataframe.apply(build_prompt_emb, axis=1)
+
+    if CLEAN_TEXT:
+        tqdm.pandas(desc="cleaner")
+        dataframe["prompt"] = dataframe["prompt"].progress_apply(cleaner)
+
+    if "rule_violation" in dataframe.columns:
+        dataframe["rule_violation"] = dataframe["rule_violation"].map(
+            {
+                1: 1,
+                0: -1,
+            }
+        )
+
+    return dataframe
