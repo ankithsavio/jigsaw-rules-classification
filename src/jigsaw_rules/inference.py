@@ -30,7 +30,7 @@ class RulesInference:
         self.lora_path = lora_path
         self.save_path = save_path
 
-    def run_subset_device(self, test_dataset):
+    def run_subset_device(self, df_slice):
         llm = vllm.LLM(
             self.model_path,
             quantization="gptq",
@@ -54,6 +54,7 @@ class RulesInference:
                 InstructConfig.negative_answer,
             ],
         )
+        test_dataset = Dataset.from_pandas(build_dataset(df_slice))
         texts = test_dataset["prompt"]
 
         outputs = llm.generate(
@@ -78,7 +79,7 @@ class RulesInference:
         predictions = pd.DataFrame(log_probs)[
             [InstructConfig.positive_answer, InstructConfig.negative_answer]
         ]
-        predictions["row_id"] = test_dataset["row_id"]
+        predictions["row_id"] = df_slice["row_id"].values
         return predictions
 
     def worker(self, device_id, test_dataset, return_dict):
@@ -115,7 +116,7 @@ class RulesInference:
             ],
             errors="ignore",
         )
-        return build_dataset(dataframe)
+        return dataframe
 
     def run(self):
         """
@@ -126,8 +127,6 @@ class RulesInference:
         mid = len(test_dataframe) // 2
         df0 = test_dataframe.iloc[:mid].reset_index(drop=True)
         df1 = test_dataframe.iloc[mid:].reset_index(drop=True)
-        df0 = Dataset.from_pandas(df0)
-        df1 = Dataset.from_pandas(df1)
         manager = mp.Manager()
         return_dict = manager.dict()
 
@@ -246,7 +245,9 @@ class ChatRulesInference(RulesInference):
         predictions = pd.DataFrame(log_probs)[
             [InstructConfig.positive_answer, InstructConfig.negative_answer]
         ]
-        predictions["row_id"] = test_dataset["row_id"]
+        predictions["row_id"] = test_dataset[
+            "row_id"
+        ]  # dataset so no need to use .values
 
         # build submission
         submission = predictions[
