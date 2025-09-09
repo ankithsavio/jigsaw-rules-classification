@@ -15,6 +15,7 @@ dependencies = [
     "optimum==1.27.0",
     "peft>=0.17.1",
     "sentence-transformers==3.4.1",
+    "triton==3.3.1",
     "trl==0.21.0",
     "vllm==0.10.0",
 ]

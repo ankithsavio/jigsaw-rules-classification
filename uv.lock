@@ -1094,6 +1094,7 @@ dependencies = [
     { name = "optimum" },
     { name = "peft" },
     { name = "sentence-transformers" },
+    { name = "triton" },
     { name = "trl" },
     { name = "vllm" },
 ]
@@ -1110,6 +1111,7 @@ requires-dist = [
     { name = "optimum", specifier = "==1.27.0" },
     { name = "peft", specifier = ">=0.17.1" },
     { name = "sentence-transformers", specifier = "==3.4.1" },
+    { name = "triton", specifier = "==3.3.1" },
     { name = "trl", specifier = "==0.21.0" },
     { name = "vllm", specifier = "==0.10.0" },
 ]
