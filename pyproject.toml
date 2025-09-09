@@ -1,16 +1,20 @@
 [project]
 name = "jigsaw"
 version = "0.1.0"
-description = "Kaggle competition"
+description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
-    "argparse>=1.4.0",
-    "ipykernel>=6.30.1",
-    "kaggle>=1.7.4.5",
-    "numpy>=2.2.6",
-    "pandas>=2.3.2",
-    "sentence-transformers>=5.1.0",
-    "types-tqdm>=4.67.0.20250809",
-    "vllm>=0.10.1.1",
+    "accelerate>=1.10.1",
+    "auto-gptq==0.7.1",
+    "bitsandbytes==0.46.1",
+    "clean-text>=0.6.0",
+    "datasets>=4.0.0",
+    "deepspeed==0.17.4",
+    "logits-processor-zoo==0.2.1",
+    "optimum==1.27.0",
+    "peft>=0.17.1",
+    "sentence-transformers==3.4.1",
+    "trl==0.21.0",
+    "vllm==0.10.0",
 ]
