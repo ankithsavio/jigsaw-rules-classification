@@ -103,20 +103,20 @@ def get_dataframe_to_train(data_path):
     flatten.append(train_df)
 
     # ---------- process test data ----------
-    sub_dataset = test_dataset[
-        [
-            "rule",
-            "subreddit",
-            "positive_example_1",
-            "positive_example_2",
-            "negative_example_1",
-            "negative_example_2",
-        ]
-    ].copy()
 
     ## test data is not labelled therefore use the example to create additional data for training
     for violation_type in ["positive", "negative"]:
         for i in range(1, 3):
+            sub_dataset = test_dataset[
+                [
+                    "rule",
+                    "subreddit",
+                    "positive_example_1",
+                    "positive_example_2",
+                    "negative_example_1",
+                    "negative_example_2",
+                ]
+            ].copy()
             if violation_type == "positive":
                 # body uses the current positive_example
                 body_col = f"positive_example_{i}"

@@ -10,6 +10,7 @@ import multiprocessing as mp
 import random
 
 import pandas as pd  # type: ignore
+import torch
 import vllm
 from datasets import Dataset  # type: ignore
 from logits_processor_zoo.vllm import (  # type: ignore
@@ -77,7 +78,7 @@ class RulesInference:
         predictions = pd.DataFrame(log_probs)[
             [InstructConfig.positive_answer, InstructConfig.negative_answer]
         ]
-        predictions["row_id"] = test_dataset["row_id"].values
+        predictions["row_id"] = test_dataset["row_id"]
         return predictions
 
     def worker(self, device_id, test_dataset, return_dict):
@@ -117,6 +118,9 @@ class RulesInference:
         return build_dataset(dataframe)
 
     def run(self):
+        """
+        Data Parallelism
+        """
         test_dataframe = self.get_dataset()
         # slice data
         mid = len(test_dataframe) // 2
@@ -187,6 +191,73 @@ class ChatRulesInference(RulesInference):
 
         df["prompt"] = prompts
         return df
+
+    def run(self):
+        """
+        Model Parallelism
+        """
+        test_dataframe = self.get_dataset()
+        test_dataset = Dataset.from_pandas(test_dataframe)
+
+        llm = vllm.LLM(
+            self.model_path,
+            quantization="gptq",
+            tensor_parallel_size=torch.cuda.device_count(),
+            gpu_memory_utilization=0.95,
+            trust_remote_code=True,
+            dtype="half",
+            enforce_eager=True,
+            max_model_len=2836,
+            disable_log_stats=True,
+            enable_prefix_caching=True,
+            enable_lora=True,
+            max_lora_rank=32,
+        )
+
+        tokenizer = llm.get_tokenizer()
+        mclp = MultipleChoiceLogitsProcessor(
+            tokenizer,  # type: ignore
+            choices=[
+                InstructConfig.positive_answer,
+                InstructConfig.negative_answer,
+            ],
+        )
+        texts = test_dataset["prompt"]
+
+        outputs = llm.generate(
+            texts,
+            vllm.SamplingParams(
+                skip_special_tokens=True,
+                max_tokens=1,
+                logits_processors=[mclp],
+                logprobs=2,
+            ),
+            use_tqdm=True,
+            lora_request=LoRARequest("default", 1, self.lora_path),
+        )
+
+        log_probs = [
+            {
+                lp.decoded_token: lp.logprob
+                for lp in out.outputs[0].logprobs[0].values()  # type: ignore
+            }
+            for out in outputs
+        ]
+        predictions = pd.DataFrame(log_probs)[
+            [InstructConfig.positive_answer, InstructConfig.negative_answer]
+        ]
+        predictions["row_id"] = test_dataset["row_id"]
+
+        # build submission
+        submission = predictions[
+            [
+                "row_id",
+                InstructConfig.positive_answer,
+            ]  # some people normalize logits against both answer yes or no and then use yes for submission
+        ].rename(columns={InstructConfig.positive_answer: "rule_violation"})
+
+        submission.to_csv(self.save_path, index=False)
+        print(f"Saved to {self.save_path}")
 
 
 if __name__ == "__main__":
