@@ -1,38 +1,30 @@
 import random
 
 import numpy as np
-import pandas as pd
+import pandas as pd  # type: ignore
 from cleantext import clean  # type: ignore
 from tqdm.auto import tqdm  # type: ignore
 
-from jigsaw_rules.constants import (
-    BASE_PROMPT,
-    CLEAN_TEXT,
-    COMPLETE_PHRASE,
-    NEGATIVE_ANSWER,
-    POSITIVE_ANSWER,
-)
+from jigsaw_rules.constants import EmbeddingConfig, InstructConfig
 
 random.seed(42)
 np.random.seed(42)
 
 
 def build_prompt(row):
-    return f"""
-{BASE_PROMPT}
-
-Subreddit: r/{row["subreddit"]}
-Rule: {row["rule"]}
-Examples:
-1) {row["positive_example"]}
-{COMPLETE_PHRASE} Yes
-
-2) {row["negative_example"]}
-{COMPLETE_PHRASE} No
-
----
-Comment: {row["body"]}
-{COMPLETE_PHRASE}"""
+    return (
+        f"{InstructConfig.base_prompt}\n"
+        f"Subreddit: r/{row['subreddit']}\n"
+        f"Rule: {row['rule']}\n"
+        "Examples:\n"
+        f"1) {row['positive_example']}\n"
+        f"{InstructConfig.complete_phrase} Yes\n"
+        f"2) {row['negative_example']}\n"
+        f"{InstructConfig.complete_phrase} No\n"
+        "---\n"
+        f"Comment: {row['body']}\n"
+        f"{InstructConfig.complete_phrase}"
+    )
 
 
 def build_prompt_emb(row):
@@ -215,8 +207,8 @@ def build_dataset(dataframe):
     if "rule_violation" in dataframe:
         dataframe["completion"] = dataframe["rule_violation"].map(
             {
-                1: POSITIVE_ANSWER,
-                0: NEGATIVE_ANSWER,
+                1: InstructConfig.positive_answer,
+                0: InstructConfig.negative_answer,
             }
         )
         columns.append("completion")
@@ -229,15 +221,15 @@ def build_dataset(dataframe):
 def build_dataset_emb(dataframe):
     dataframe["prompt"] = dataframe.apply(build_prompt_emb, axis=1)
 
-    if CLEAN_TEXT:
+    if EmbeddingConfig.clean_text:
         tqdm.pandas(desc="cleaner")
         dataframe["prompt"] = dataframe["prompt"].progress_apply(cleaner)
 
     if "rule_violation" in dataframe.columns:
         dataframe["rule_violation"] = dataframe["rule_violation"].map(
             {
-                1: 1,
-                0: -1,
+                1: EmbeddingConfig.positive_answer,
+                0: EmbeddingConfig.negative_answer,
             }
         )
 

@@ -1,8 +1,13 @@
+"""
+Designed to train Qwen0.6b during submission
+"""
+
+from datasets import Dataset  # type: ignore
 from peft import LoraConfig
 from transformers.utils.import_utils import is_torch_bf16_gpu_available
 from trl import SFTConfig, SFTTrainer  # type: ignore
 
-from jigsaw_rules.constants import BASE_MODEL_PATH, DATA_PATH, LORA_PATH
+from jigsaw_rules.constants import InstructConfig
 from jigsaw_rules.utils import build_dataset, get_dataframe_to_train
 
 
@@ -15,7 +20,7 @@ class RulesTrainer:
     def run(self):
         dataframe = get_dataframe_to_train(self.data_path)
 
-        train_dataset = build_dataset(dataframe)
+        train_dataset = Dataset.from_pandas(build_dataset(dataframe))
 
         lora_config = LoraConfig(
             r=16,
@@ -69,7 +74,9 @@ class RulesTrainer:
 
 if __name__ == "__main__":
     trainer = RulesTrainer(
-        data_path=DATA_PATH, model_path=BASE_MODEL_PATH, save_path=LORA_PATH
+        data_path=InstructConfig.data_path,
+        model_path=InstructConfig.model_path,
+        save_path=InstructConfig.lora_path,
     )
 
     trainer.run()

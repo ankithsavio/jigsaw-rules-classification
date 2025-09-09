@@ -1,3 +1,7 @@
+"""
+Designed to do inference on Qwen0.5b (Instruction-Tuned) and Qwen14b (Chat Model) Int4
+"""
+
 import os
 
 os.environ["VLLM_USE_V1"] = "0"
@@ -5,7 +9,7 @@ os.environ["VLLM_USE_V1"] = "0"
 import multiprocessing as mp
 import random
 
-import pandas as pd
+import pandas as pd  # type: ignore
 import vllm
 from datasets import Dataset  # type: ignore
 from logits_processor_zoo.vllm import (  # type: ignore
@@ -14,13 +18,7 @@ from logits_processor_zoo.vllm import (  # type: ignore
 from transformers import AutoTokenizer
 from vllm.lora.request import LoRARequest
 
-from jigsaw_rules.constants import (
-    BASE_MODEL_PATH,
-    DATA_PATH,
-    LORA_PATH,
-    NEGATIVE_ANSWER,
-    POSITIVE_ANSWER,
-)
+from jigsaw_rules.constants import ChatConfig, InstructConfig
 from jigsaw_rules.utils import build_dataset
 
 
@@ -49,7 +47,11 @@ class RulesInference:
 
         tokenizer = llm.get_tokenizer()
         mclp = MultipleChoiceLogitsProcessor(
-            tokenizer, choices=[POSITIVE_ANSWER, NEGATIVE_ANSWER]
+            tokenizer,  # type: ignore
+            choices=[
+                InstructConfig.positive_answer,
+                InstructConfig.negative_answer,
+            ],
         )
         texts = test_dataset["prompt"]
 
@@ -68,12 +70,12 @@ class RulesInference:
         log_probs = [
             {
                 lp.decoded_token: lp.logprob
-                for lp in out.outputs[0].logprobs[0].values()
+                for lp in out.outputs[0].logprobs[0].values()  # type: ignore
             }
             for out in outputs
         ]
         predictions = pd.DataFrame(log_probs)[
-            [POSITIVE_ANSWER, NEGATIVE_ANSWER]
+            [InstructConfig.positive_answer, InstructConfig.negative_answer]
         ]
         predictions["row_id"] = test_dataset["row_id"].values
         return predictions
@@ -139,46 +141,37 @@ class RulesInference:
         )
 
         # build submission
-        submission = predictions[["row_id", POSITIVE_ANSWER]].rename(
-            columns={POSITIVE_ANSWER: "rule_violation"}
-        )
+        submission = predictions[
+            ["row_id", InstructConfig.positive_answer]
+        ].rename(columns={InstructConfig.positive_answer: "rule_violation"})
 
         submission.to_csv(self.save_path, index=False)
         print(f"Saved to {self.save_path}")
 
 
-class ChatRuleInference(RulesInference):
+class ChatRulesInference(RulesInference):
     def get_dataset(self):
         df = pd.read_csv(f"{self.data_path}/test.csv")
         tokenizer = AutoTokenizer.from_pretrained(self.model_path)
 
-        SYS_PROMPT = """
-You are given a comment on reddit. Your task is to classify if it violates the given rule. Only respond Yes/No.
-"""
-
         prompts = []
         for i, row in df.iterrows():
-            text = f"""
-        r/{row.subreddit}
-        Rule: {row.rule}
-        
-        1) {row.positive_example_1}
-        Violation: Yes
-        
-        2) {row.positive_example_2}
-        Violation: Yes
-        
-        3) {row.negative_example_1}
-        Violation: No
-        
-        4) {row.negative_example_2}
-        Violation: No
-        
-        5) {row.body}
-        """
+            text = (
+                f"r/{row.subreddit}\n"
+                f"Rule: {row.rule}\n"
+                f"1) {row.positive_example_1}\n"
+                "Violation: Yes\n"
+                f"2) {row.positive_example_2}\n"
+                "Violation: Yes\n"
+                f"3) {row.negative_example_1}\n"
+                "Violation: No\n"
+                f"4) {row.negative_example_2}\n"
+                "Violation: No\n"
+                f"5) {row.body}\n"
+            )
 
             messages = [
-                {"role": "system", "content": SYS_PROMPT},
+                {"role": "system", "content": ChatConfig.base_prompt},
                 {"role": "user", "content": text},
             ]
 
@@ -194,3 +187,29 @@ You are given a comment on reddit. Your task is to classify if it violates the g
 
         df["prompt"] = prompts
         return df
+
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("type", type=str)
+
+    args = parser.parse_args()
+
+    if args.type == "instruction":
+        inference = RulesInference(
+            data_path=InstructConfig.data_path,
+            model_path=InstructConfig.model_path,
+            lora_path=InstructConfig.lora_path,
+            save_path=InstructConfig.out_file,
+        )
+        inference.run()
+    elif args.type == "chat":
+        inference = ChatRulesInference(
+            data_path=ChatConfig.data_path,
+            model_path=ChatConfig.model_path,
+            lora_path=ChatConfig.lora_path,
+            save_path=ChatConfig.out_file,
+        )
+        inference.run()

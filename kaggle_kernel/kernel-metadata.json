@@ -1,7 +1,7 @@
 {
-  "id": "weedoo/jigsaw_rules_classification",
-  "title": "jigsaw rules classification",
-  "code_file": "jigsaw_rules_classification.py",
+  "id": "weedoo/jigsaw_rules",
+  "title": "jigsaw rules",
+  "code_file": "jigsaw_rules.ipynb",
   "language": "python",
   "kernel_type": "notebook",
   "is_private": "true",
