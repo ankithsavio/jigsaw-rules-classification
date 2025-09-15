@@ -16,11 +16,10 @@ from datasets import Dataset  # type: ignore
 from logits_processor_zoo.vllm import (  # type: ignore
     MultipleChoiceLogitsProcessor,
 )
-from transformers import AutoTokenizer
 from vllm.lora.request import LoRARequest
 
 from jigsaw_rules.constants import ChatConfig, InstructConfig
-from jigsaw_rules.utils import build_dataset
+from jigsaw_rules.utils import build_dataset, build_dataset_chat
 
 
 class RulesInference:
@@ -153,50 +152,17 @@ class RulesInference:
 
 
 class ChatRulesInference(RulesInference):
-    def get_dataset(self):
-        df = pd.read_csv(f"{self.data_path}/test.csv")
-        tokenizer = AutoTokenizer.from_pretrained(self.model_path)
-
-        prompts = []
-        for i, row in df.iterrows():
-            text = (
-                f"r/{row.subreddit}\n"
-                f"Rule: {row.rule}\n"
-                f"1) {row.positive_example_1}\n"
-                "Violation: Yes\n"
-                f"2) {row.positive_example_2}\n"
-                "Violation: Yes\n"
-                f"3) {row.negative_example_1}\n"
-                "Violation: No\n"
-                f"4) {row.negative_example_2}\n"
-                "Violation: No\n"
-                f"5) {row.body}\n"
-            )
-
-            messages = [
-                {"role": "system", "content": ChatConfig.base_prompt},
-                {"role": "user", "content": text},
-            ]
-
-            prompt = (
-                tokenizer.apply_chat_template(
-                    messages,
-                    add_generation_prompt=True,
-                    tokenize=False,
-                )
-                + "Answer:"
-            )
-            prompts.append(prompt)
-
-        df["prompt"] = prompts
+    def get_dataset(self, df):
+        df = build_dataset_chat(df)
         return df
 
     def run(self):
         """
         Model Parallelism
         """
-        test_dataframe = self.get_dataset()
-        test_dataset = Dataset.from_pandas(test_dataframe)
+        test_dataframe = pd.read_csv(f"{self.data_path}/test.csv")
+        dataset = self.get_dataset(test_dataframe)
+        dataset = Dataset.from_pandas(dataset)
 
         llm = vllm.LLM(
             self.model_path,
@@ -217,11 +183,11 @@ class ChatRulesInference(RulesInference):
         mclp = MultipleChoiceLogitsProcessor(
             tokenizer,  # type: ignore
             choices=[
-                InstructConfig.positive_answer,
-                InstructConfig.negative_answer,
+                ChatConfig.positive_answer,
+                ChatConfig.negative_answer,
             ],
         )
-        texts = test_dataset["prompt"]
+        texts = dataset["prompt"]
 
         outputs = llm.generate(
             texts,
@@ -243,9 +209,9 @@ class ChatRulesInference(RulesInference):
             for out in outputs
         ]
         predictions = pd.DataFrame(log_probs)[
-            [InstructConfig.positive_answer, InstructConfig.negative_answer]
+            [ChatConfig.positive_answer, ChatConfig.negative_answer]
         ]
-        predictions["row_id"] = test_dataset[
+        predictions["row_id"] = test_dataframe[
             "row_id"
         ]  # dataset so no need to use .values
 
@@ -253,9 +219,9 @@ class ChatRulesInference(RulesInference):
         submission = predictions[
             [
                 "row_id",
-                InstructConfig.positive_answer,
+                ChatConfig.positive_answer,
             ]  # some people normalize logits against both answer yes or no and then use yes for submission
-        ].rename(columns={InstructConfig.positive_answer: "rule_violation"})
+        ].rename(columns={ChatConfig.positive_answer: "rule_violation"})
 
         submission.to_csv(self.save_path, index=False)
         print(f"Saved to {self.save_path}")
@@ -269,19 +235,20 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if args.type == "instruction":
+    if args.type == InstructConfig.model_type:
         inference = RulesInference(
             data_path=InstructConfig.data_path,
             model_path=InstructConfig.model_path,
             lora_path=InstructConfig.lora_path,
             save_path=InstructConfig.out_file,
         )
-        inference.run()
-    elif args.type == "chat":
+    elif args.type == ChatConfig.model_type:
         inference = ChatRulesInference(
             data_path=ChatConfig.data_path,
             model_path=ChatConfig.model_path,
             lora_path=ChatConfig.lora_path,
             save_path=ChatConfig.out_file,
         )
-        inference.run()
+    else:
+        raise AttributeError("Invalid inference type")
+    inference.run()

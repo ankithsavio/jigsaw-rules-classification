@@ -8,7 +8,7 @@ from transformers.utils.import_utils import is_torch_bf16_gpu_available
 from trl import SFTConfig, SFTTrainer  # type: ignore
 
 from jigsaw_rules.constants import InstructConfig
-from jigsaw_rules.utils import build_dataset, get_dataframe_to_train
+from jigsaw_rules.utils import get_train_dataset
 
 
 class RulesTrainer:
@@ -18,9 +18,9 @@ class RulesTrainer:
         self.save_path = save_path
 
     def run(self):
-        dataframe = get_dataframe_to_train(self.data_path)
+        dataframe = get_train_dataset(InstructConfig.model_type)
 
-        train_dataset = Dataset.from_pandas(build_dataset(dataframe))
+        train_dataset = Dataset.from_pandas(dataframe)
 
         lora_config = LoraConfig(
             r=16,

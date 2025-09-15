@@ -4,8 +4,9 @@ import numpy as np
 import pandas as pd  # type: ignore
 from cleantext import clean  # type: ignore
 from tqdm.auto import tqdm  # type: ignore
+from transformers import AutoTokenizer
 
-from jigsaw_rules.constants import EmbeddingConfig, InstructConfig
+from jigsaw_rules.constants import ChatConfig, EmbeddingConfig, InstructConfig
 
 random.seed(42)
 np.random.seed(42)
@@ -25,6 +26,35 @@ def build_prompt(row):
         f"Comment: {row['body']}\n"
         f"{InstructConfig.complete_phrase}"
     )
+
+
+def build_prompt_chat(row, tokenizer):
+    text = (
+        f"r/{row['subreddit']}\n"
+        f"Rule: {row['rule']}\n"
+        "Examples:\n"
+        f"1) {row['positive_example']}\n"
+        f"{ChatConfig.complete_phrase} Yes\n"
+        f"2) {row['negative_example']}\n"
+        f"{ChatConfig.complete_phrase} No\n"
+        "---\n"
+        f"Comment: {row['body']}\n"
+        f"{ChatConfig.complete_phrase}"
+    )
+    messages = [
+        {"role": "system", "content": ChatConfig.base_prompt},
+        {"role": "user", "content": text},
+    ]
+
+    prompt = (
+        tokenizer.apply_chat_template(
+            messages,
+            add_generation_prompt=True,
+            tokenize=False,
+        )
+        + ChatConfig.complete_phrase
+    )
+    return prompt
 
 
 def build_prompt_emb(row):
@@ -214,7 +244,28 @@ def build_dataset(dataframe):
         columns.append("completion")
 
     dataframe = dataframe[columns]
-    dataframe.to_csv("/kaggle/working/dataset.csv", index=False)
+    # dataframe.to_csv("/kaggle/working/dataset.csv", index=False)
+    return dataframe
+
+
+def build_dataset_chat(dataframe):
+    tokenizer = AutoTokenizer.from_pretrained(ChatConfig.model_path)
+    dataframe["prompt"] = dataframe.apply(
+        lambda row: build_prompt_chat(row, tokenizer), axis=1
+    )
+
+    columns = ["prompt"]
+    if "rule_violation" in dataframe:
+        dataframe["completion"] = dataframe["rule_violation"].map(
+            {
+                1: ChatConfig.positive_answer,
+                0: ChatConfig.negative_answer,
+            }
+        )
+        columns.append("completion")
+
+    dataframe = dataframe[columns]
+    # dataframe.to_csv("/kaggle/working/dataset.csv", index=False)
     return dataframe
 
 
@@ -234,3 +285,18 @@ def build_dataset_emb(dataframe):
         )
 
     return dataframe
+
+
+def get_train_dataset(model_type: str):  # train data optional during inference
+    if model_type == InstructConfig.model_type:
+        dataframe = get_dataframe_to_train(InstructConfig.data_path)
+        dataset = build_dataset(dataframe)
+    elif model_type == ChatConfig.model_type:
+        dataframe = get_dataframe_to_train(ChatConfig.data_path)
+        dataset = build_dataset_chat(dataframe)
+    elif model_type == EmbeddingConfig.model_type:
+        dataframe = get_dataframe_to_train_emb(EmbeddingConfig.data_path)
+        dataset = build_dataset_emb(dataframe)
+    else:
+        raise AttributeError("Unknow model type")
+    return dataset

@@ -7,7 +7,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from jigsaw_rules.constants import EmbeddingConfig
 from jigsaw_rules.inference import RulesInference
-from jigsaw_rules.utils import build_dataset_emb, get_dataframe_to_train_emb
+from jigsaw_rules.utils import build_dataset_emb, get_train_dataset
 
 
 class EmbeddingRulesInference(RulesInference):
@@ -17,8 +17,7 @@ class EmbeddingRulesInference(RulesInference):
         return dataframe
 
     def get_scores(self, test_dataframe):
-        corpus_dataframe = get_dataframe_to_train_emb(self.data_path)
-        corpus_dataframe = build_dataset_emb(corpus_dataframe)
+        corpus_dataframe = get_train_dataset("embed")
 
         # Load base model
         model = AutoModelForCausalLM.from_pretrained(self.model_path)
