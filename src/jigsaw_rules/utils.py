@@ -234,6 +234,22 @@ def build_dataset_emb(dataframe):
     # Semantic search
     dataframe["prompt"] = dataframe.apply(build_prompt_emb, axis=1)
 
+    if EmbeddingConfig.clean_text:
+        tqdm.pandas(desc="cleaner")
+        dataframe["prompt"] = dataframe["prompt"].progress_apply(cleaner)
+
+    if "rule_violation" in dataframe.columns:
+        dataframe["rule_violation"] = dataframe["rule_violation"].map(
+            {
+                1: EmbeddingConfig.positive_answer,
+                0: EmbeddingConfig.negative_answer,
+            }
+        )
+
+    return dataframe
+
+
+def build_dataset_emb_swift(dataframe):
     # Fine Tuning
     dataframe["messages"] = dataframe.apply(
         lambda row: [
@@ -268,19 +284,6 @@ def build_dataset_emb(dataframe):
         ],
         axis=1,
     )
-
-    if EmbeddingConfig.clean_text:
-        tqdm.pandas(desc="cleaner")
-        dataframe["prompt"] = dataframe["prompt"].progress_apply(cleaner)
-
-    if "rule_violation" in dataframe.columns:
-        dataframe["rule_violation"] = dataframe["rule_violation"].map(
-            {
-                1: EmbeddingConfig.positive_answer,
-                0: EmbeddingConfig.negative_answer,
-            }
-        )
-
     return dataframe
 
 
@@ -294,6 +297,7 @@ def get_train_dataset(model_type: str):  # train data optional during inference
     elif model_type == EmbeddingConfig.model_type:
         dataframe = get_dataframe_to_train(EmbeddingConfig.data_path)
         dataset = build_dataset_emb(dataframe)
+        dataset = build_dataset_emb_swift(dataset)
     else:
         raise AttributeError("Unknow model type")
     return dataset
