@@ -152,8 +152,31 @@ class RulesInference:
 
 
 class ChatRulesInference(RulesInference):
-    def get_dataset(self, df):
-        df = build_dataset_chat(df)
+    def get_dataset(self, dataframe):
+        # randomly selected examples
+        dataframe["positive_example"] = dataframe.apply(
+            lambda row: random.choice(
+                [row["positive_example_1"], row["positive_example_2"]]
+            ),
+            axis=1,
+        )
+        dataframe["negative_example"] = dataframe.apply(
+            lambda row: random.choice(
+                [row["negative_example_1"], row["negative_example_2"]]
+            ),
+            axis=1,
+        )
+        dataframe = dataframe.drop(
+            columns=[
+                "positive_example_1",
+                "positive_example_2",
+                "negative_example_1",
+                "negative_example_2",
+            ],
+            errors="ignore",
+        )
+
+        df = build_dataset_chat(dataframe)
         return df
 
     def run(self):
