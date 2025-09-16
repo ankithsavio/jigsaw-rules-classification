@@ -1,10 +1,3 @@
-import os
-import sys
-
-script_dir = os.path.dirname(os.path.abspath(__file__))
-src_dir = os.path.dirname(script_dir)
-sys.path.insert(0, src_dir)
-
 import random
 
 import numpy as np
