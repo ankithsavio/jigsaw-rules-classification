@@ -1,3 +1,10 @@
+import os
+import sys
+
+script_dir = os.path.dirname(os.path.abspath(__file__))
+src_dir = os.path.dirname(script_dir)
+sys.path.insert(0, src_dir)
+
 import random
 
 import numpy as np
@@ -202,7 +209,6 @@ def get_dataframe_to_train(data_path):
 def build_dataset(dataframe):
     dataframe["prompt"] = dataframe.apply(build_prompt, axis=1)
 
-    columns = ["prompt"]
     if "rule_violation" in dataframe:
         dataframe["completion"] = dataframe["rule_violation"].map(
             {
@@ -210,10 +216,7 @@ def build_dataset(dataframe):
                 0: InstructConfig.negative_answer,
             }
         )
-        columns.append("completion")
 
-    dataframe = dataframe[columns]
-    # dataframe.to_csv("/kaggle/working/dataset.csv", index=False)
     return dataframe
 
 
@@ -223,7 +226,6 @@ def build_dataset_chat(dataframe):
         lambda row: build_prompt_chat(row, tokenizer), axis=1
     )
 
-    columns = ["prompt"]
     if "rule_violation" in dataframe:
         dataframe["completion"] = dataframe["rule_violation"].map(
             {
@@ -231,10 +233,7 @@ def build_dataset_chat(dataframe):
                 0: ChatConfig.negative_answer,
             }
         )
-        columns.append("completion")
 
-    dataframe = dataframe[columns]
-    # dataframe.to_csv("/kaggle/working/dataset.csv", index=False)
     return dataframe
 
 
@@ -251,11 +250,29 @@ def build_dataset_emb(dataframe):
         axis=1,
     )
     dataframe["positive_messages"] = dataframe.apply(
-        lambda row: [[{"role": "user", "content": row["positive_example"]}]],
+        lambda row: [
+            [
+                {
+                    "role": "user",  # query should be closer to the positive example if it violates the rule
+                    "content": row["positive_example"]
+                    if row["rule_violation"] == 1
+                    else row["negative_example"],
+                }
+            ]
+        ],
         axis=1,
     )
     dataframe["negative_messages"] = dataframe.apply(
-        lambda row: [[{"role": "user", "content": row["negative_example"]}]],
+        lambda row: [
+            [
+                {
+                    "role": "user",
+                    "content": row["negative_example"]
+                    if row["rule_violation"] == 1
+                    else row["positive_example"],
+                }
+            ]
+        ],
         axis=1,
     )
 
