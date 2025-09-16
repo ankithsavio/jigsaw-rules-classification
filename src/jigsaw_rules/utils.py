@@ -199,37 +199,6 @@ def get_dataframe_to_train(data_path):
     return dataframe
 
 
-def get_dataframe_to_train_emb(data_path):
-    train_dataset = pd.read_csv(f"{data_path}/train.csv")
-    test_dataset = (
-        pd.read_csv(f"{data_path}/test.csv")
-        .sample(frac=0.6, random_state=42)
-        .reset_index(drop=True)
-    )
-
-    flatten = []
-    flatten.append(
-        train_dataset[["body", "rule", "subreddit", "rule_violation"]]
-    )
-
-    for violation_type in ["positive", "negative"]:
-        for i in range(1, 3):
-            sub_dataset = test_dataset[
-                [f"{violation_type}_example_{i}", "rule", "subreddit"]
-            ].copy()
-            sub_dataset = sub_dataset.rename(
-                columns={f"{violation_type}_example_{i}": "body"}
-            )
-            sub_dataset["rule_violation"] = (
-                1 if violation_type == "positive" else 0
-            )
-            flatten.append(sub_dataset)
-
-    dataframe = pd.concat(flatten, axis=0)
-    dataframe = dataframe.drop_duplicates(ignore_index=True)
-    return dataframe
-
-
 def build_dataset(dataframe):
     dataframe["prompt"] = dataframe.apply(build_prompt, axis=1)
 
@@ -270,7 +239,25 @@ def build_dataset_chat(dataframe):
 
 
 def build_dataset_emb(dataframe):
+    # Semantic search
     dataframe["prompt"] = dataframe.apply(build_prompt_emb, axis=1)
+
+    # Fine Tuning
+    dataframe["messages"] = dataframe.apply(
+        lambda row: [
+            {"role": "system", "content": EmbeddingConfig.base_query},
+            {"role": "user", "content": row["body"]},
+        ],
+        axis=1,
+    )
+    dataframe["positive_messages"] = dataframe.apply(
+        lambda row: [[{"role": "user", "content": row["positive_example"]}]],
+        axis=1,
+    )
+    dataframe["negative_messages"] = dataframe.apply(
+        lambda row: [[{"role": "user", "content": row["negative_example"]}]],
+        axis=1,
+    )
 
     if EmbeddingConfig.clean_text:
         tqdm.pandas(desc="cleaner")
@@ -295,7 +282,7 @@ def get_train_dataset(model_type: str):  # train data optional during inference
         dataframe = get_dataframe_to_train(ChatConfig.data_path)
         dataset = build_dataset_chat(dataframe)
     elif model_type == EmbeddingConfig.model_type:
-        dataframe = get_dataframe_to_train_emb(EmbeddingConfig.data_path)
+        dataframe = get_dataframe_to_train(EmbeddingConfig.data_path)
         dataset = build_dataset_emb(dataframe)
     else:
         raise AttributeError("Unknow model type")
