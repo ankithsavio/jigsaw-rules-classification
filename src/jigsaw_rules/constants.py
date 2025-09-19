@@ -8,6 +8,8 @@ class InstructConfig:
     complete_phrase = "Answer:"
     base_prompt = """You are given a comment from reddit and a rule. Your task is to classify whether the comment violates the rule. Only respond Yes/No."""
     out_file = "submission_instruct.csv"
+    use_subset = False
+    subset = 0.5
 
 
 class ChatConfig:
@@ -20,6 +22,8 @@ class ChatConfig:
     complete_phrase = "Violation:"
     base_prompt = """You are given a comment on reddit. Your task is to classify if it violates the given rule. Only respond Yes/No."""
     out_file = "submission_chat.csv"
+    use_subset = False
+    subset = 0.5
 
 
 class EmbeddingConfig:
@@ -34,6 +38,8 @@ class EmbeddingConfig:
     top_k = 2000
     batch_size = 128
     out_file = "submission_embedding.csv"
+    use_subset = False
+    subset = 0.5
 
 
 class RobertaConfig:
@@ -46,3 +52,5 @@ class RobertaConfig:
     top_k = 2000
     batch_size = 128
     out_file = "submission_roberta.csv"
+    use_subset = False
+    subset = 0.5

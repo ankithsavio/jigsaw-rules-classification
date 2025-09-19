@@ -260,7 +260,7 @@ class ChatEngine(JigsawInference):
             [
                 "row_id",
                 ChatConfig.positive_answer,
-            ]  # some people normalize logits against both answer yes or no and then use yes for submission
+            ]  
         ].rename(columns={ChatConfig.positive_answer: "rule_violation"})
 
         submission.to_csv(self.save_path, index=False)

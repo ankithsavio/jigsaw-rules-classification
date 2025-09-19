@@ -33,6 +33,11 @@ class Instruct(JigsawTrainer):
     def run(self):
         dataframe = get_train_dataset(InstructConfig.model_type)
 
+        if InstructConfig.use_subset:
+            dataframe = dataframe.sample(
+                frac=InstructConfig.subset, random_state=42
+            ).reset_index(drop=True)
+
         train_dataset = Dataset.from_pandas(dataframe)
 
         lora_config = LoraConfig(
@@ -88,6 +93,11 @@ class Instruct(JigsawTrainer):
 class RobertaBase(JigsawTrainer):
     def run(self):
         dataframe = get_train_dataset(RobertaConfig.model_type)
+
+        if RobertaConfig.use_subset:
+            dataframe = dataframe.sample(
+                frac=RobertaConfig.subset, random_state=42
+            ).reset_index(drop=True)
 
         X = dataframe["input"].tolist()
         y = dataframe["rule_violation"].tolist()

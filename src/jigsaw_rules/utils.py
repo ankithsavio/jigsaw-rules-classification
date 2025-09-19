@@ -91,7 +91,7 @@ def get_dataframe_to_train(data_path):
     train_dataset = pd.read_csv(f"{data_path}/train.csv")
     test_dataset = (
         pd.read_csv(f"{data_path}/test.csv")
-        .sample(frac=0.5, random_state=42)
+        .sample(frac=1, random_state=42)  # shuffle
         .reset_index(drop=True)
     )
 
@@ -315,7 +315,11 @@ def get_dataset_roberta(data_path):
     )
     df_add_neg.columns = ["body", "rule", "subreddit", "rule_violation"]
 
-    df_add = pd.concat([df_add_pos, df_add_neg], axis=0).sample(1)
+    df_add = (
+        pd.concat([df_add_pos, df_add_neg], axis=0)
+        .sample(frac=1, random_state=42)
+        .reset_index(drop=True)
+    )
 
     train_df = pd.DataFrame(
         train_df[["body", "rule", "subreddit", "rule_violation"]].copy()
