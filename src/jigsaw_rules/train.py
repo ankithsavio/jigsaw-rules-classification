@@ -135,6 +135,8 @@ class RobertaBase(JigsawTrainer):
             logging_strategy="steps",
             logging_steps=10,
             logging_dir="./logs",
+            save_strategy="epoch",
+            save_total_limit=2,
             report_to=[],
             disable_tqdm=False,
         )
