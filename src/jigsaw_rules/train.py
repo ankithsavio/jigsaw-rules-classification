@@ -4,10 +4,18 @@ Designed to train Qwen0.6b during submission
 
 from datasets import Dataset  # type: ignore
 from peft import LoraConfig
+from sklearn.model_selection import train_test_split  # type: ignore
+from transformers import (
+    RobertaForSequenceClassification,
+    RobertaTokenizer,
+    Trainer,
+    TrainingArguments,
+)
 from transformers.utils.import_utils import is_torch_bf16_gpu_available
 from trl import SFTConfig, SFTTrainer  # type: ignore
 
-from jigsaw_rules.constants import InstructConfig
+from jigsaw_rules.constants import InstructConfig, RobertaConfig
+from jigsaw_rules.dataset import RedditDataset
 from jigsaw_rules.utils import get_train_dataset
 
 
@@ -66,6 +74,66 @@ class RulesTrainer:
             args=training_args,
             train_dataset=train_dataset,
             peft_config=lora_config,
+        )
+
+        trainer.train()
+        trainer.save_model(self.save_path)
+
+
+class RulesTrainerRobertaBase:
+    def __init__(self, data_path, model_path, save_path):
+        self.data_path = data_path
+        self.model_path = model_path
+        self.save_path = save_path
+
+    def run(self):
+        dataframe = get_train_dataset(RobertaConfig.model_type)
+
+        X = dataframe["input"].tolist()
+        y = dataframe["rule_violation"].tolist()
+
+        X_train, X_val, y_train, y_val = train_test_split(
+            X, y, test_size=0.1, random_state=42
+        )
+
+        tokenizer = RobertaTokenizer.from_pretrained(RobertaConfig.model_path)
+        model = RobertaForSequenceClassification.from_pretrained(
+            RobertaConfig.model_path
+        )
+
+        train_encodings = tokenizer(
+            X_train, truncation=True, padding=True, max_length=512
+        )
+        val_encodings = tokenizer(
+            X_val, truncation=True, padding=True, max_length=512
+        )
+
+        train_dataset = RedditDataset(train_encodings, y_train)
+        val_dataset = RedditDataset(val_encodings, y_val)
+
+        model = RobertaForSequenceClassification.from_pretrained(
+            RobertaConfig.model_path
+        ).to("cuda")  # type: ignore
+
+        training_args = TrainingArguments(
+            output_dir="./results",
+            num_train_epochs=6,
+            per_device_train_batch_size=8,
+            per_device_eval_batch_size=8,
+            warmup_steps=500,
+            eval_strategy="epoch",
+            logging_strategy="steps",
+            logging_steps=10,
+            logging_dir="./logs",
+            report_to=[],
+            disable_tqdm=False,
+        )
+
+        trainer = Trainer(
+            model=model,
+            args=training_args,
+            train_dataset=train_dataset,
+            eval_dataset=val_dataset,
         )
 
         trainer.train()

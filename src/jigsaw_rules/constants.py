@@ -34,3 +34,15 @@ class EmbeddingConfig:
     top_k = 2000
     batch_size = 128
     out_file = "submission_embedding.csv"
+
+
+class RobertaConfig:
+    model_type = "roberta_base"
+    data_path = "/kaggle/input/jigsaw-agile-community-rules/"
+    model_path = "/kaggle/input/roberta-base/transformers/default/1"
+    ckpt_path = "/kaggle/working/roberta-base-jigsaw/"
+    positive_answer = 1
+    negative_answer = 0
+    top_k = 2000
+    batch_size = 128
+    out_file = "submission_roberta.csv"

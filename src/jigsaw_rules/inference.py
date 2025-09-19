@@ -1,5 +1,5 @@
 """
-Designed to do inference on Qwen0.5b (Instruction-Tuned) and Qwen14b (Chat Model) Int4
+Designed to do inference on test data
 """
 
 import os
@@ -16,19 +16,36 @@ from datasets import Dataset  # type: ignore
 from logits_processor_zoo.vllm import (  # type: ignore
     MultipleChoiceLogitsProcessor,
 )
+from sklearn.model_selection import train_test_split  # type: ignore
+from transformers import (
+    RobertaForSequenceClassification,
+    RobertaTokenizer,
+    Trainer,
+    TrainingArguments,
+)
 from vllm.lora.request import LoRARequest
 
-from jigsaw_rules.constants import ChatConfig, InstructConfig
-from jigsaw_rules.utils import build_dataset, build_dataset_chat
+from jigsaw_rules.constants import ChatConfig, InstructConfig, RobertaConfig
+from jigsaw_rules.dataset import RedditDataset
+from jigsaw_rules.utils import (
+    build_dataset,
+    build_dataset_chat,
+    get_dataset_roberta,
+)
 
 
-class RulesInference:
-    def __init__(self, data_path, model_path, lora_path, save_path):
+class Inference:
+    def __init__(self, data_path, model_path, lora_path=None, save_path=None):
         self.data_path = data_path
         self.model_path = model_path
-        self.lora_path = lora_path
-        self.save_path = save_path
+        self.lora_path = lora_path if lora_path else ""
+        self.save_path = save_path if save_path else ""
 
+    def run(self):
+        raise NotImplementedError
+
+
+class InstructEngine(Inference):
     def run_subset_device(self, df_slice):
         llm = vllm.LLM(
             self.model_path,
@@ -151,7 +168,7 @@ class RulesInference:
         print(f"Saved to {self.save_path}")
 
 
-class ChatRulesInference(RulesInference):
+class ChatEngine(Inference):
     def get_dataset(self, dataframe):
         # randomly selected examples
         dataframe["positive_example"] = dataframe.apply(
@@ -250,6 +267,81 @@ class ChatRulesInference(RulesInference):
         print(f"Saved to {self.save_path}")
 
 
+class RobertaEngine(Inference):
+    def get_dataset(self):
+        df_train, df_test = get_dataset_roberta(RobertaConfig.data_path)
+        return df_train, df_test
+
+    def run(self):
+        df_train, df_test = self.get_dataset()
+        X = df_train["input"].tolist()
+        y = df_train["rule_violation"].tolist()
+
+        X_train, X_val, y_train, y_val = train_test_split(
+            X, y, test_size=0.1, random_state=42
+        )
+
+        tokenizer = RobertaTokenizer.from_pretrained(RobertaConfig.model_path)
+        model = RobertaForSequenceClassification.from_pretrained(
+            RobertaConfig.model_path
+        )
+        train_encodings = tokenizer(
+            X_train, truncation=True, padding=True, max_length=512
+        )
+        val_encodings = tokenizer(
+            X_val, truncation=True, padding=True, max_length=512
+        )
+
+        train_dataset = RedditDataset(train_encodings, y_train)
+        val_dataset = RedditDataset(val_encodings, y_val)
+
+        model = RobertaForSequenceClassification.from_pretrained(
+            RobertaConfig.model_path
+        ).to("cuda")  # type: ignore
+
+        training_args = TrainingArguments(
+            output_dir="./results",
+            num_train_epochs=6,
+            per_device_train_batch_size=8,
+            per_device_eval_batch_size=8,
+            warmup_steps=500,
+            eval_strategy="epoch",
+            logging_strategy="steps",
+            logging_steps=10,
+            logging_dir="./logs",
+            report_to=[],
+            disable_tqdm=False,
+        )
+
+        trainer = Trainer(
+            model=model,
+            args=training_args,
+            train_dataset=train_dataset,
+            eval_dataset=val_dataset,
+        )
+
+        test_encodings = tokenizer(
+            df_test["input"].tolist(),
+            truncation=True,
+            padding=True,
+            max_length=512,
+        )
+
+        dummy_labels = [0] * len(df_test)
+        test_dataset = RedditDataset(test_encodings, dummy_labels)
+
+        test_outputs = trainer.predict(test_dataset)
+        probs = torch.nn.functional.softmax(
+            torch.tensor(test_outputs.predictions), dim=1
+        )[:, 1].numpy()
+
+        submission_df = pd.DataFrame(
+            {"row_id": df_test["row_id"], "rule_violation": probs}
+        )
+
+        submission_df.to_csv(self.save_path, index=False)
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -259,19 +351,27 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.type == InstructConfig.model_type:
-        inference = RulesInference(
+        inference: Inference = InstructEngine(
             data_path=InstructConfig.data_path,
             model_path=InstructConfig.model_path,
             lora_path=InstructConfig.lora_path,
             save_path=InstructConfig.out_file,
         )
+        inference.run()
     elif args.type == ChatConfig.model_type:
-        inference = ChatRulesInference(
+        inference = ChatEngine(
             data_path=ChatConfig.data_path,
             model_path=ChatConfig.model_path,
             lora_path=ChatConfig.lora_path,
             save_path=ChatConfig.out_file,
         )
+        inference.run()
+    elif args.type == RobertaConfig.model_type:
+        inference = RobertaEngine(
+            data_path=RobertaConfig.data_path,
+            model_path=RobertaConfig.model_path,
+            save_path=RobertaConfig.out_file,
+        )
+        inference.run()
     else:
         raise AttributeError("Invalid inference type")
-    inference.run()

@@ -6,7 +6,12 @@ from cleantext import clean  # type: ignore
 from tqdm.auto import tqdm  # type: ignore
 from transformers import AutoTokenizer
 
-from jigsaw_rules.constants import ChatConfig, EmbeddingConfig, InstructConfig
+from jigsaw_rules.constants import (
+    ChatConfig,
+    EmbeddingConfig,
+    InstructConfig,
+    RobertaConfig,
+)
 
 random.seed(42)
 np.random.seed(42)
@@ -287,6 +292,58 @@ def build_dataset_emb_swift(dataframe):
     return dataframe
 
 
+def get_dataset_roberta(data_path):
+    train_df = pd.read_csv(f"{data_path}/train.csv")
+    test_df = pd.read_csv(f"{data_path}/test.csv")
+
+    test_df["positive"] = (
+        test_df["positive_example_1"] + test_df["positive_example_2"]
+    )
+    test_df["negative"] = (
+        test_df["negative_example_1"] + test_df["negative_example_2"]
+    )
+
+    test_df["val_pos_ex"] = 1
+    test_df["val_neg_ex"] = 0
+
+    df_add_pos = pd.DataFrame(
+        test_df[["positive", "rule", "subreddit", "val_pos_ex"]]
+    )
+    df_add_pos.columns = ["body", "rule", "subreddit", "rule_violation"]
+    df_add_neg = pd.DataFrame(
+        test_df[["negative", "rule", "subreddit", "val_neg_ex"]]
+    )
+    df_add_neg.columns = ["body", "rule", "subreddit", "rule_violation"]
+
+    df_add = pd.concat([df_add_pos, df_add_neg], axis=0).sample(1)
+
+    train_df = pd.DataFrame(
+        train_df[["body", "rule", "subreddit", "rule_violation"]].copy()
+    )
+
+    train_df = pd.concat([train_df, df_add], axis=0)
+
+    train_df["input"] = (
+        "rule:"
+        + train_df["rule"]
+        + "subreddit:"
+        + train_df["subreddit"]
+        + "body:"
+        + train_df["body"]
+    )
+
+    test_df["input"] = (
+        "rule:"
+        + test_df["rule"]
+        + "subreddit:"
+        + test_df["subreddit"]
+        + "body:"
+        + test_df["body"]
+    )
+
+    return train_df, test_df
+
+
 def get_train_dataset(model_type: str):  # train data optional during inference
     if model_type == InstructConfig.model_type:
         dataframe = get_dataframe_to_train(InstructConfig.data_path)
@@ -298,6 +355,8 @@ def get_train_dataset(model_type: str):  # train data optional during inference
         dataframe = get_dataframe_to_train(EmbeddingConfig.data_path)
         dataset = build_dataset_emb(dataframe)
         dataset = build_dataset_emb_swift(dataset)
+    elif model_type == RobertaConfig.model_type:
+        dataset, _ = get_dataset_roberta(RobertaConfig.data_path)
     else:
         raise AttributeError("Unknow model type")
     return dataset
