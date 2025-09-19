@@ -19,12 +19,17 @@ from jigsaw_rules.dataset import RedditDataset
 from jigsaw_rules.utils import get_train_dataset
 
 
-class RulesTrainer:
+class JigsawTrainer:
     def __init__(self, data_path, model_path, save_path):
         self.data_path = data_path
         self.model_path = model_path
         self.save_path = save_path
 
+    def run(self):
+        raise NotImplementedError
+
+
+class Instruct(JigsawTrainer):
     def run(self):
         dataframe = get_train_dataset(InstructConfig.model_type)
 
@@ -80,12 +85,7 @@ class RulesTrainer:
         trainer.save_model(self.save_path)
 
 
-class RulesTrainerRobertaBase:
-    def __init__(self, data_path, model_path, save_path):
-        self.data_path = data_path
-        self.model_path = model_path
-        self.save_path = save_path
-
+class RobertaBase(JigsawTrainer):
     def run(self):
         dataframe = get_train_dataset(RobertaConfig.model_type)
 
@@ -141,10 +141,24 @@ class RulesTrainerRobertaBase:
 
 
 if __name__ == "__main__":
-    trainer = RulesTrainer(
-        data_path=InstructConfig.data_path,
-        model_path=InstructConfig.model_path,
-        save_path=InstructConfig.lora_path,
-    )
+    import argparse
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("type", type=str)
+
+    args = parser.parse_args()
+
+    if args.type == InstructConfig.model_type:
+        trainer: JigsawTrainer = Instruct(
+            data_path=InstructConfig.data_path,
+            model_path=InstructConfig.model_path,
+            save_path=InstructConfig.lora_path,
+        )
+    elif args.type == RobertaConfig.model_type:
+        trainer = RobertaBase(
+            data_path=RobertaConfig.data_path,
+            model_path=RobertaConfig.model_path,
+            save_path=RobertaConfig.ckpt_path,
+        )
 
     trainer.run()

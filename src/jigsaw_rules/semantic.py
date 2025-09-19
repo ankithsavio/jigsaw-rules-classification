@@ -6,11 +6,11 @@ from tqdm.auto import tqdm  # type: ignore
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from jigsaw_rules.constants import EmbeddingConfig
-from jigsaw_rules.inference import Inference
+from jigsaw_rules.inference import JigsawInference
 from jigsaw_rules.utils import build_dataset_emb, get_train_dataset
 
 
-class EmbeddingRulesInference(Inference):
+class EmbeddingEngine(JigsawInference):
     def get_dataset(self):
         dataframe = pd.read_csv(f"{self.data_path}/test.csv")
         dataframe = build_dataset_emb(dataframe)
@@ -113,7 +113,7 @@ class EmbeddingRulesInference(Inference):
 
 
 if __name__ == "__main__":
-    inference = EmbeddingRulesInference(
+    inference = EmbeddingEngine(
         data_path=EmbeddingConfig.data_path,
         model_path=EmbeddingConfig.model_path,
         lora_path=EmbeddingConfig.lora_path,

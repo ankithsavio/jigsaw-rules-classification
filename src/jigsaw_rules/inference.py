@@ -34,7 +34,7 @@ from jigsaw_rules.utils import (
 )
 
 
-class Inference:
+class JigsawInference:
     def __init__(self, data_path, model_path, lora_path=None, save_path=None):
         self.data_path = data_path
         self.model_path = model_path
@@ -45,7 +45,7 @@ class Inference:
         raise NotImplementedError
 
 
-class InstructEngine(Inference):
+class InstructEngine(JigsawInference):
     def run_subset_device(self, df_slice):
         llm = vllm.LLM(
             self.model_path,
@@ -168,7 +168,7 @@ class InstructEngine(Inference):
         print(f"Saved to {self.save_path}")
 
 
-class ChatEngine(Inference):
+class ChatEngine(JigsawInference):
     def get_dataset(self, dataframe):
         # randomly selected examples
         dataframe["positive_example"] = dataframe.apply(
@@ -267,7 +267,7 @@ class ChatEngine(Inference):
         print(f"Saved to {self.save_path}")
 
 
-class RobertaEngine(Inference):
+class RobertaEngine(JigsawInference):
     def get_dataset(self):
         df_train, df_test = get_dataset_roberta(RobertaConfig.data_path)
         return df_train, df_test
@@ -351,7 +351,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     if args.type == InstructConfig.model_type:
-        inference: Inference = InstructEngine(
+        inference: JigsawInference = InstructEngine(
             data_path=InstructConfig.data_path,
             model_path=InstructConfig.model_path,
             lora_path=InstructConfig.lora_path,
