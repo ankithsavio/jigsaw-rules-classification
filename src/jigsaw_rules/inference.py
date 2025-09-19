@@ -260,7 +260,7 @@ class ChatEngine(JigsawInference):
             [
                 "row_id",
                 ChatConfig.positive_answer,
-            ]  
+            ]
         ].rename(columns={ChatConfig.positive_answer: "rule_violation"})
 
         submission.to_csv(self.save_path, index=False)
@@ -269,7 +269,7 @@ class ChatEngine(JigsawInference):
 
 class RobertaEngine(JigsawInference):
     def get_dataset(self):
-        df_train, df_test = get_dataset_roberta(RobertaConfig.data_path)
+        df_train, df_test = get_dataset_roberta(self.data_path)
         return df_train, df_test
 
     def run(self):
@@ -281,10 +281,8 @@ class RobertaEngine(JigsawInference):
             X, y, test_size=0.1, random_state=42
         )
 
-        tokenizer = RobertaTokenizer.from_pretrained(RobertaConfig.model_path)
-        model = RobertaForSequenceClassification.from_pretrained(
-            RobertaConfig.model_path
-        )
+        tokenizer = RobertaTokenizer.from_pretrained(self.model_path)
+
         train_encodings = tokenizer(
             X_train, truncation=True, padding=True, max_length=512
         )
@@ -296,7 +294,7 @@ class RobertaEngine(JigsawInference):
         val_dataset = RedditDataset(val_encodings, y_val)
 
         model = RobertaForSequenceClassification.from_pretrained(
-            RobertaConfig.model_path
+            self.model_path
         ).to("cuda")  # type: ignore
 
         training_args = TrainingArguments(
