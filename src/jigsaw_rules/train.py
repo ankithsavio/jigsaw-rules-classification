@@ -154,11 +154,11 @@ if __name__ == "__main__":
             model_path=InstructConfig.model_path,
             save_path=InstructConfig.lora_path,
         )
+        trainer.run()
     elif args.type == RobertaConfig.model_type:
         trainer = RobertaBase(
             data_path=RobertaConfig.data_path,
             model_path=RobertaConfig.model_path,
             save_path=RobertaConfig.ckpt_path,
         )
-
-    trainer.run()
+        trainer.run()
