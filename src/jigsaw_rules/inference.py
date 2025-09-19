@@ -369,7 +369,7 @@ if __name__ == "__main__":
     elif args.type == RobertaConfig.model_type:
         inference = RobertaEngine(
             data_path=RobertaConfig.data_path,
-            model_path=RobertaConfig.model_path,
+            model_path=RobertaConfig.ckpt_path,
             save_path=RobertaConfig.out_file,
         )
         inference.run()
