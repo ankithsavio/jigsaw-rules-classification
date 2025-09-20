@@ -4,6 +4,16 @@ Designed to train Qwen0.6b during submission
 
 from datasets import Dataset  # type: ignore
 from peft import LoraConfig
+from sentence_transformers import (
+    SentenceTransformer,
+    SentenceTransformerTrainer,
+    SentenceTransformerTrainingArguments,
+)
+from sentence_transformers.evaluation import (
+    SimilarityFunction,
+    TripletEvaluator,
+)
+from sentence_transformers.losses import MultipleNegativesRankingLoss
 from sklearn.model_selection import train_test_split  # type: ignore
 from transformers import (
     RobertaForSequenceClassification,
@@ -14,7 +24,7 @@ from transformers import (
 from transformers.utils.import_utils import is_torch_bf16_gpu_available
 from trl import SFTConfig, SFTTrainer  # type: ignore
 
-from jigsaw_rules.constants import InstructConfig, RobertaConfig
+from jigsaw_rules.constants import InstructConfig, RobertaConfig, e5Config
 from jigsaw_rules.dataset import RedditDataset
 from jigsaw_rules.utils import get_train_dataset
 
@@ -132,12 +142,8 @@ class RobertaBase(JigsawTrainer):
             per_device_eval_batch_size=8,
             warmup_steps=500,
             eval_strategy="epoch",
-            logging_strategy="steps",
-            logging_steps=10,
-            logging_dir="./logs",
-            save_strategy="epoch",
-            save_total_limit=2,
-            report_to=[],
+            save_strategy="no",
+            report_to="none",
             disable_tqdm=False,
         )
 
@@ -150,6 +156,7 @@ class RobertaBase(JigsawTrainer):
 
         trainer.train()
         trainer.save_model(self.save_path)
+        tokenizer.save_pretrained(self.save_path)
 
 
 if __name__ == "__main__":
