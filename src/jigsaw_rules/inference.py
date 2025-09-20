@@ -17,12 +17,6 @@ from logits_processor_zoo.vllm import (  # type: ignore
     MultipleChoiceLogitsProcessor,
 )
 from sklearn.model_selection import train_test_split  # type: ignore
-from transformers import (
-    RobertaForSequenceClassification,
-    RobertaTokenizer,
-    Trainer,
-    TrainingArguments,
-)
 from vllm.lora.request import LoRARequest
 
 from jigsaw_rules.constants import ChatConfig, InstructConfig, RobertaConfig
@@ -46,7 +40,7 @@ class JigsawInference:
 
 
 class InstructEngine(JigsawInference):
-    def run_subset_device(self, df_slice):
+    def run_subset_device(self, test_dataset):
         llm = vllm.LLM(
             self.model_path,
             quantization="gptq",
@@ -70,7 +64,6 @@ class InstructEngine(JigsawInference):
                 InstructConfig.negative_answer,
             ],
         )
-        test_dataset = Dataset.from_pandas(build_dataset(df_slice))
         texts = test_dataset["prompt"]
 
         outputs = llm.generate(
@@ -95,7 +88,7 @@ class InstructEngine(JigsawInference):
         predictions = pd.DataFrame(log_probs)[
             [InstructConfig.positive_answer, InstructConfig.negative_answer]
         ]
-        predictions["row_id"] = df_slice["row_id"].values
+        predictions["row_id"] = test_dataset["row_id"]
         return predictions
 
     def worker(self, device_id, test_dataset, return_dict):
@@ -143,6 +136,8 @@ class InstructEngine(JigsawInference):
         mid = len(test_dataframe) // 2
         df0 = test_dataframe.iloc[:mid].reset_index(drop=True)
         df1 = test_dataframe.iloc[mid:].reset_index(drop=True)
+        df0 = Dataset.from_pandas(build_dataset(df0))
+        df1 = Dataset.from_pandas(build_dataset(df1))
         manager = mp.Manager()
         return_dict = manager.dict()
 
@@ -273,6 +268,13 @@ class RobertaEngine(JigsawInference):
         return df_train, df_test
 
     def run(self):
+        from transformers import (  # Avoid cuda init in the parent process
+            RobertaForSequenceClassification,
+            RobertaTokenizer,
+            Trainer,
+            TrainingArguments,
+        )
+
         df_train, df_test = self.get_dataset()
         X = df_train["input"].tolist()
         y = df_train["rule_violation"].tolist()
@@ -347,10 +349,6 @@ if __name__ == "__main__":
     parser.add_argument("type", type=str)
 
     args = parser.parse_args()
-
-    import multiprocessing as mp
-
-    mp.set_start_method("spawn", force=True)
 
     if args.type == InstructConfig.model_type:
         inference: JigsawInference = InstructEngine(
