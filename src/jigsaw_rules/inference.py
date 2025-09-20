@@ -348,6 +348,10 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
+    import multiprocessing as mp
+
+    mp.set_start_method("spawn", force=True)
+
     if args.type == InstructConfig.model_type:
         inference: JigsawInference = InstructEngine(
             data_path=InstructConfig.data_path,
