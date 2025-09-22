@@ -2,6 +2,7 @@
 Designed to train Qwen0.6b during submission
 """
 
+import pandas as pd  # type: ignore
 from datasets import Dataset  # type: ignore
 from peft import LoraConfig
 from sentence_transformers import (
@@ -162,6 +163,12 @@ class RobertaBase(JigsawTrainer):
 class e5Base(JigsawTrainer):
     def run(self):
         dataframe = get_train_dataset(e5Config.model_type)
+        dataframe = pd.DataFrame(
+            dataframe[
+                ["anchor", "positive_example", "negative_example"]
+            ].copy()
+        )
+        dataframe.columns = ["anchor", "positive", "negative"]
 
         if e5Config.use_subset:
             dataframe = dataframe.sample(

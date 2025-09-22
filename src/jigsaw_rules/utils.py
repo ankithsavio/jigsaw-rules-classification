@@ -376,13 +376,7 @@ def get_train_dataset(model_type: str):  # train data optional during inference
         dataset, _ = build_dataset_roberta(RobertaConfig.data_path)
     elif model_type == e5Config.model_type:
         dataframe = get_dataframe_to_train(e5Config.data_path)
-        train_dataset = build_dataset_e5(dataframe)
-        dataset = pd.DataFrame(
-            train_dataset[
-                ["anchor", "positive_example", "negative_example"]
-            ].copy()
-        )
-        dataset.columns = ["anchor", "positive", "negative"]
+        dataset = build_dataset_e5(dataframe)
     else:
         raise AttributeError("Unknow model type")
     return dataset
