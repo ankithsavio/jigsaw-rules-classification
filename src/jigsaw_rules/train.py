@@ -194,9 +194,9 @@ class e5Base(JigsawTrainer):
         )
 
         evaluator = TripletEvaluator(
-            anchors=test_dataset["anchor"],
-            positives=test_dataset["positive"],
-            negatives=test_dataset["negative"],
+            anchors=list(test_dataset["anchor"]),
+            positives=list(test_dataset["positive"]),
+            negatives=list(test_dataset["negative"]),
             main_distance_function=SimilarityFunction.COSINE,
         )
 
