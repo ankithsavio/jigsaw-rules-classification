@@ -24,7 +24,9 @@ from jigsaw_rules.dataset import RedditDataset
 from jigsaw_rules.utils import (
     build_dataset,
     build_dataset_chat,
+    build_dataset_deberta,
     build_dataset_roberta,
+    url_to_semantics,
 )
 
 
@@ -268,8 +270,8 @@ class ChatEngine(JigsawInference):
 
 class RobertaEngine(JigsawInference):
     def get_dataset(self):
-        df_train, df_test = build_dataset_roberta(self.data_path)
-        return df_train, df_test
+        _, df_test = build_dataset_roberta(self.data_path)
+        return df_test
 
     def run(self):
         from transformers import (  # hackyfix : avoid cuda init in the parent process
@@ -279,25 +281,9 @@ class RobertaEngine(JigsawInference):
             TrainingArguments,
         )
 
-        df_train, df_test = self.get_dataset()
-        X = df_train["input"].tolist()
-        y = df_train["rule_violation"].tolist()
-
-        X_train, X_val, y_train, y_val = train_test_split(
-            X, y, test_size=0.1, random_state=42
-        )
+        df_test = self.get_dataset()
 
         tokenizer = RobertaTokenizer.from_pretrained(self.model_path)
-
-        train_encodings = tokenizer(
-            X_train, truncation=True, padding=True, max_length=512
-        )
-        val_encodings = tokenizer(
-            X_val, truncation=True, padding=True, max_length=512
-        )
-
-        train_dataset = RedditDataset(train_encodings, y_train)
-        val_dataset = RedditDataset(val_encodings, y_val)
 
         model = RobertaForSequenceClassification.from_pretrained(
             self.model_path
@@ -305,14 +291,8 @@ class RobertaEngine(JigsawInference):
 
         training_args = TrainingArguments(
             output_dir="./results",
-            num_train_epochs=6,
             per_device_train_batch_size=8,
             per_device_eval_batch_size=8,
-            warmup_steps=500,
-            eval_strategy="epoch",
-            logging_strategy="steps",
-            logging_steps=10,
-            logging_dir="./logs",
             report_to=[],
             disable_tqdm=False,
         )
@@ -320,8 +300,6 @@ class RobertaEngine(JigsawInference):
         trainer = Trainer(
             model=model,
             args=training_args,
-            train_dataset=train_dataset,
-            eval_dataset=val_dataset,
         )
 
         test_encodings = tokenizer(
@@ -344,6 +322,66 @@ class RobertaEngine(JigsawInference):
         )
 
         submission_df.to_csv(self.save_path, index=False)
+
+
+class DebertaBase(JigsawInference):
+    def get_dataset(self):
+        dataframe = pd.read_csv(f"{self.data_path}/test.csv")
+        dataframe = build_dataset_deberta(dataframe)
+        return dataframe
+
+    def run(self):
+        os.environ["TOKENIZERS_PARALLELISM"] = "false"
+        from transformers import (  # hackyfix : avoid cuda init in the parent process
+            DataCollatorWithPadding,
+            DebertaV2ForSequenceClassification,
+            DebertaV2Tokenizer,
+            Trainer,
+            TrainingArguments,
+        )
+
+        test_dataset = self.get_dataset()
+        tokenizer = DebertaV2Tokenizer.from_pretrained(self.model_path)
+        collator = DataCollatorWithPadding(tokenizer)
+
+        model = DebertaV2ForSequenceClassification.from_pretrained(
+            self.model_path, num_labels=2
+        )
+
+        training_args = TrainingArguments(
+            output_dir="./results",
+            per_device_train_batch_size=16,
+            per_device_eval_batch_size=16,
+            report_to="none",
+            save_strategy="no",
+        )
+
+        trainer = Trainer(
+            model=model,
+            args=training_args,
+            data_collator=collator,
+        )
+
+        test_encodings = tokenizer(
+            test_dataset["input_text"].tolist(),
+            truncation=True,
+            max_length=256,
+        )
+
+        test_dataset = RedditDataset(test_encodings)
+
+        predictions = trainer.predict(test_dataset)
+        probs = torch.nn.functional.softmax(
+            torch.tensor(predictions.predictions), dim=1
+        )[:, 1].numpy()
+
+        submission_df = pd.DataFrame(
+            {
+                "row_id": test_dataset["row_id"],
+                "rule_violation": probs,
+            }
+        )
+        submission_df.to_csv("submission.csv", index=False)
 
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
 import random
+import re
 
 import numpy as np
 import pandas as pd  # type: ignore
@@ -8,6 +9,7 @@ from transformers import AutoTokenizer
 
 from jigsaw_rules.constants import (
     ChatConfig,
+    DebertaConfig,
     EmbeddingConfig,
     InstructConfig,
     RobertaConfig,
@@ -16,6 +18,74 @@ from jigsaw_rules.constants import (
 
 random.seed(42)
 np.random.seed(42)
+
+
+def cleaner(text):
+    return clean(
+        text,
+        fix_unicode=True,
+        to_ascii=True,
+        lower=False,
+        no_line_breaks=False,
+        no_urls=True,
+        no_emails=True,
+        no_phone_numbers=True,
+        no_numbers=False,
+        no_digits=False,
+        no_currency_symbols=False,
+        no_punct=False,
+        replace_with_url="<URL>",
+        replace_with_email="<EMAIL>",
+        replace_with_phone_number="<PHONE>",
+        lang="en",
+    )
+
+
+def url_to_semantics(text):
+    if not isinstance(text, str):
+        return ""
+
+    urls = re.findall(r"https?://[^\s/$.?#].[^\s]*", text)
+    if not urls:
+        return ""
+
+    all_semantics = []
+    seen_semantics = set()
+
+    for url in urls:
+        url_lower = url.lower()
+
+        domain_match = re.search(
+            r"(?:https?://)?([a-z0-9\-\.]+)\.[a-z]{2,}", url_lower
+        )
+        if domain_match:
+            full_domain = domain_match.group(1)
+            parts = full_domain.split(".")
+            for part in parts:
+                if part and part not in seen_semantics and len(part) > 3:
+                    all_semantics.append(f"domain:{part}")
+                    seen_semantics.add(part)
+
+        path = re.sub(
+            r"^(?:https?://)?[a-z0-9\.-]+\.[a-z]{2,}/?", "", url_lower
+        )
+        path_parts = [
+            p for p in re.split(r"[/_.-]+", path) if p and p.isalnum()
+        ]
+
+        for part in path_parts:
+            part_clean = re.sub(r"\.(html?|php|asp|jsp)$|#.*|\?.*", "", part)
+            if (
+                part_clean
+                and part_clean not in seen_semantics
+                and len(part_clean) > 3
+            ):
+                all_semantics.append(f"path:{part_clean}")
+                seen_semantics.add(part_clean)
+
+    if not all_semantics:
+        return ""
+    return f"\nURL Keywords: {' '.join(all_semantics)}"
 
 
 def build_prompt(row):
@@ -67,34 +137,17 @@ def build_prompt_emb(row):
     return f"""r/{row["subreddit"]}\nComment: {row["body"]}"""
 
 
-def cleaner(text):
-    return clean(
-        text,
-        fix_unicode=True,
-        to_ascii=True,
-        lower=False,
-        no_line_breaks=False,
-        no_urls=True,
-        no_emails=True,
-        no_phone_numbers=True,
-        no_numbers=False,
-        no_digits=False,
-        no_currency_symbols=False,
-        no_punct=False,
-        replace_with_url="<URL>",
-        replace_with_email="<EMAIL>",
-        replace_with_phone_number="<PHONE>",
-        lang="en",
-    )
+def build_prompt_deberta(row):
+    rule = row.get("rule", "")
+    body = row.get("body", "")
+    url_features = url_to_semantics(body)
+
+    return f"{rule}[SEP]{body}{url_features}"
 
 
 def get_dataframe_to_train(data_path):
     train_dataset = pd.read_csv(f"{data_path}/train.csv")
-    test_dataset = (
-        pd.read_csv(f"{data_path}/test.csv")
-        .sample(frac=1, random_state=42)  # shuffle
-        .reset_index(drop=True)
-    )
+    test_dataset = pd.read_csv(f"{data_path}/test.csv")
 
     flatten = []
 
@@ -201,6 +254,9 @@ def get_dataframe_to_train(data_path):
     # merge all DataFrame
     dataframe = pd.concat(flatten, axis=0)
     dataframe = dataframe.drop_duplicates(ignore_index=True)
+    dataframe = dataframe.sample(frac=1, random_state=42).reset_index(
+        drop=True  # shuffle
+    )
 
     return dataframe
 
@@ -361,6 +417,21 @@ def build_dataset_e5(dataframe):
     return dataframe
 
 
+def build_dataset_deberta(dataframe):
+    dataframe = dataframe.copy()
+    dataframe["input_text"] = dataframe.apply(build_prompt_deberta, axis=1)
+
+    if "rule_violation" in dataframe:
+        dataframe["completion"] = dataframe["rule_violation"].map(
+            {
+                1: DebertaConfig.positive_answer,
+                0: DebertaConfig.negative_answer,
+            }
+        )
+
+    return dataframe
+
+
 def get_train_dataset(model_type: str):  # train data optional during inference
     if model_type == InstructConfig.model_type:
         dataframe = get_dataframe_to_train(InstructConfig.data_path)
@@ -377,6 +448,9 @@ def get_train_dataset(model_type: str):  # train data optional during inference
     elif model_type == e5Config.model_type:
         dataframe = get_dataframe_to_train(e5Config.data_path)
         dataset = build_dataset_e5(dataframe)
+    elif model_type == DebertaConfig.model_type:
+        dataframe = get_dataframe_to_train(DebertaConfig.data_path)
+        dataset = build_dataset_deberta(dataframe)
     else:
         raise AttributeError("Unknow model type")
     return dataset

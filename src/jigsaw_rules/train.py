@@ -2,6 +2,8 @@
 Designed to train Qwen0.6b during submission
 """
 
+import os
+
 import pandas as pd  # type: ignore
 from datasets import Dataset  # type: ignore
 from peft import LoraConfig
@@ -17,6 +19,9 @@ from sentence_transformers.evaluation import (
 from sentence_transformers.losses import MultipleNegativesRankingLoss
 from sklearn.model_selection import train_test_split  # type: ignore
 from transformers import (
+    DataCollatorWithPadding,
+    DebertaV2ForSequenceClassification,
+    DebertaV2Tokenizer,
     RobertaForSequenceClassification,
     RobertaTokenizer,
     Trainer,
@@ -25,9 +30,14 @@ from transformers import (
 from transformers.utils.import_utils import is_torch_bf16_gpu_available
 from trl import SFTConfig, SFTTrainer  # type: ignore
 
-from jigsaw_rules.constants import InstructConfig, RobertaConfig, e5Config
+from jigsaw_rules.constants import (
+    DebertaConfig,
+    InstructConfig,
+    RobertaConfig,
+    e5Config,
+)
 from jigsaw_rules.dataset import RedditDataset
-from jigsaw_rules.utils import get_train_dataset
+from jigsaw_rules.utils import get_train_dataset, url_to_semantics
 
 
 class JigsawTrainer:
@@ -220,6 +230,55 @@ class e5Base(JigsawTrainer):
         evaluator(model)
         trainer.save_model(self.save_path)
 
+
+class DebertaBase(JigsawTrainer):
+    def run(self):
+        os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+        dataframe = get_train_dataset(DebertaConfig.model_type)
+
+        if DebertaConfig.use_subset:
+            dataframe = dataframe.sample(
+                frac=DebertaConfig.subset, random_state=42
+            ).reset_index(drop=True)
+
+        tokenizer = DebertaV2Tokenizer.from_pretrained(self.model_path)
+        collator = DataCollatorWithPadding(tokenizer)
+
+        train_encodings = tokenizer(
+            dataframe["input_text"].tolist(),
+            truncation=True,
+            max_length=256,
+        )
+
+        train_labels = dataframe["rule_violation"].tolist()
+        train_dataset = RedditDataset(train_encodings, train_labels)
+
+        model = DebertaV2ForSequenceClassification.from_pretrained(
+            self.model_path, num_labels=2
+        )
+
+        training_args = TrainingArguments(
+            output_dir="./results",
+            num_train_epochs=2,
+            learning_rate=2e-5,
+            per_device_train_batch_size=16,
+            warmup_ratio=0.1,
+            weight_decay=0.01,
+            report_to="none",
+            save_strategy="no",
+        )
+
+        trainer = Trainer(
+            model=model,
+            args=training_args,
+            train_dataset=train_dataset,
+            data_collator=collator,
+        )
+        trainer.train()
+        trainer.save_model(self.save_path)
+        tokenizer.save_pretrained(self.save_path)
+        
 
 if __name__ == "__main__":
     import argparse
