@@ -11,6 +11,7 @@ from jigsaw_rules.constants import (
     EmbeddingConfig,
     InstructConfig,
     RobertaConfig,
+    e5Config,
 )
 
 random.seed(42)
@@ -292,7 +293,7 @@ def build_dataset_emb_swift(dataframe):
     return dataframe
 
 
-def get_dataset_roberta(data_path):
+def build_dataset_roberta(data_path):
     train_df = pd.read_csv(f"{data_path}/train.csv")
     test_df = pd.read_csv(f"{data_path}/test.csv")
 
@@ -348,6 +349,18 @@ def get_dataset_roberta(data_path):
     return train_df, test_df
 
 
+def build_dataset_e5(dataframe):
+    dataframe["anchor"] = (
+        "rule:"
+        + dataframe["rule"]
+        + "subreddit:"
+        + dataframe["subreddit"]
+        + "body:"
+        + dataframe["body"]
+    )
+    return dataframe
+
+
 def get_train_dataset(model_type: str):  # train data optional during inference
     if model_type == InstructConfig.model_type:
         dataframe = get_dataframe_to_train(InstructConfig.data_path)
@@ -360,7 +373,13 @@ def get_train_dataset(model_type: str):  # train data optional during inference
         dataset = build_dataset_emb(dataframe)
         dataset = build_dataset_emb_swift(dataset)
     elif model_type == RobertaConfig.model_type:
-        dataset, _ = get_dataset_roberta(RobertaConfig.data_path)
+        dataset, _ = build_dataset_roberta(RobertaConfig.data_path)
+    elif model_type == e5Config.model_type:
+        dataframe = get_dataframe_to_train(e5Config.data_path)
+        dataset = build_dataset_e5(dataframe)
+        dataset = pd.Dataframe(
+            dataframe[["anchor", "positive", "negative"]].copy()
+        )
     else:
         raise AttributeError("Unknow model type")
     return dataset

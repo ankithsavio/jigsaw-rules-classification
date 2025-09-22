@@ -159,6 +159,61 @@ class RobertaBase(JigsawTrainer):
         tokenizer.save_pretrained(self.save_path)
 
 
+class e5Base(JigsawTrainer):
+    def run(self):
+        dataframe = get_train_dataset(e5Config.model_type)
+
+        if e5Config.use_subset:
+            dataframe = dataframe.sample(
+                frac=e5Config.subset, random_state=42
+            ).reset_index(drop=True)
+
+        dataset = Dataset.from_pandas(dataframe).train_test_split(
+            test_size=0.01, seed=42
+        )
+
+        train_dataset = dataset["train"]
+        test_dataset = dataset["test"]
+
+        model = SentenceTransformer(self.model_path)
+        loss = MultipleNegativesRankingLoss(model)
+
+        args = SentenceTransformerTrainingArguments(
+            output_dir=self.save_path,
+            num_train_epochs=16,
+            per_device_train_batch_size=16,
+            per_device_eval_batch_size=16,
+            gradient_accumulation_steps=2,
+            learning_rate=2e-5,
+            warmup_ratio=0.1,
+            fp16=True,
+            eval_strategy="steps",
+            eval_steps=100,
+            save_strategy="no",
+            report_to="none",
+        )
+
+        evaluator = TripletEvaluator(
+            anchors=test_dataset["anchor"],
+            positives=test_dataset["positive"],
+            negatives=test_dataset["negative"],
+            main_distance_function=SimilarityFunction.COSINE,
+        )
+
+        trainer = SentenceTransformerTrainer(
+            model=model,
+            args=args,
+            train_dataset=train_dataset,  # only 3 columns, anchor, positive, negative
+            eval_dataset=test_dataset,
+            loss=loss,
+            evaluator=evaluator,
+        )
+
+        trainer.train()
+        evaluator(model)
+        trainer.save_model(self.save_path)
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -179,5 +234,12 @@ if __name__ == "__main__":
             data_path=RobertaConfig.data_path,
             model_path=RobertaConfig.model_path,
             save_path=RobertaConfig.ckpt_path,
+        )
+        trainer.run()
+    elif args.type == e5Config.model_type:
+        trainer = e5Base(
+            data_path=e5Config.data_path,
+            model_path=e5Config.model_path,
+            save_path=e5Config.ckpt_path,
         )
         trainer.run()

@@ -54,3 +54,17 @@ class RobertaConfig:
     out_file = "submission_roberta.csv"
     use_subset = False
     subset = 0.5
+
+
+class e5Config:
+    model_type = "e5_base_v2"
+    data_path = "/kaggle/input/jigsaw-agile-community-rules/"
+    model_path = "/kaggle/input/e5-base-v2/transformers/default/1"
+    ckpt_path = "/kaggle/working/e5-base-v2-jigsaw/"
+    positive_answer = 1
+    negative_answer = 0
+    top_k = 2000
+    batch_size = 128
+    out_file = "submission_e5.csv"
+    use_subset = False
+    subset = 0.5

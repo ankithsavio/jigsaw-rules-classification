@@ -24,7 +24,7 @@ from jigsaw_rules.dataset import RedditDataset
 from jigsaw_rules.utils import (
     build_dataset,
     build_dataset_chat,
-    get_dataset_roberta,
+    build_dataset_roberta,
 )
 
 
@@ -40,6 +40,10 @@ class JigsawInference:
 
 
 class InstructEngine(JigsawInference):
+    """
+    Manual DDP as accelerate doesnt work well with vLLM
+    """
+
     def run_subset_device(self, test_dataset):
         llm = vllm.LLM(
             self.model_path,
@@ -264,11 +268,11 @@ class ChatEngine(JigsawInference):
 
 class RobertaEngine(JigsawInference):
     def get_dataset(self):
-        df_train, df_test = get_dataset_roberta(self.data_path)
+        df_train, df_test = build_dataset_roberta(self.data_path)
         return df_train, df_test
 
     def run(self):
-        from transformers import (  # Avoid cuda init in the parent process
+        from transformers import (  # hackyfix : avoid cuda init in the parent process
             RobertaForSequenceClassification,
             RobertaTokenizer,
             Trainer,
