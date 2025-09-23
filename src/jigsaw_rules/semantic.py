@@ -227,3 +227,5 @@ if __name__ == "__main__":
             save_path=e5Config.out_file,
         )
         inference.run()
+    else:
+        raise AttributeError("Invalid inference type")

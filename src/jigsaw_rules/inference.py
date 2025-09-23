@@ -345,7 +345,7 @@ class DebertaEngine(JigsawInference):
             TrainingArguments,
         )
 
-        test_dataset = self.get_dataset()
+        test_dataframe = self.get_dataset()
         tokenizer = DebertaV2Tokenizer.from_pretrained(self.model_path)
         collator = DataCollatorWithPadding(tokenizer)
 
@@ -368,7 +368,7 @@ class DebertaEngine(JigsawInference):
         )
 
         test_encodings = tokenizer(
-            test_dataset["input_text"].tolist(),
+            test_dataframe["input_text"].tolist(),
             truncation=True,
             max_length=256,
         )
@@ -382,11 +382,11 @@ class DebertaEngine(JigsawInference):
 
         submission_df = pd.DataFrame(
             {
-                "row_id": test_dataset["row_id"],
+                "row_id": test_dataframe["row_id"],
                 "rule_violation": probs,
             }
         )
-        submission_df.to_csv("submission.csv", index=False)
+        submission_df.to_csv(self.save_path, index=False)
 
 
 if __name__ == "__main__":
