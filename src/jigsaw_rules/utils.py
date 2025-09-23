@@ -374,14 +374,11 @@ def build_dataframe_emb_swift():
 @DataframeFactory.register(RobertaConfig.model_type)
 def build_dataframe_roberta():
     def build_prompt(row):
-        return (
-            "rule:"
-            + row["rule"]
-            + "subreddit:"
-            + row["subreddit"]
-            + "body:"
-            + row["body"]
-        )
+        rule = row["rule"]
+        body = row["body"]
+        url_features = url_to_semantics(body)
+
+        return f"rule: {rule}\nbody: {body}\n{url_features}"
 
     if RobertaConfig.include_train:
         train_df = pd.read_csv(f"{RobertaConfig.data_path}/train.csv")
