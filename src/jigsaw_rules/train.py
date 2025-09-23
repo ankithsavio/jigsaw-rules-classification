@@ -37,7 +37,7 @@ from jigsaw_rules.constants import (
     e5Config,
 )
 from jigsaw_rules.dataset import RedditDataset
-from jigsaw_rules.utils import get_train_dataset, url_to_semantics
+from jigsaw_rules.utils import get_train_dataframe
 
 
 class JigsawTrainer:
@@ -52,7 +52,7 @@ class JigsawTrainer:
 
 class Instruct(JigsawTrainer):
     def run(self):
-        dataframe = get_train_dataset(InstructConfig.model_type)
+        dataframe = get_train_dataframe(InstructConfig.model_type)
 
         if InstructConfig.use_subset:
             dataframe = dataframe.sample(
@@ -113,7 +113,7 @@ class Instruct(JigsawTrainer):
 
 class RobertaBase(JigsawTrainer):
     def run(self):
-        dataframe = get_train_dataset(RobertaConfig.model_type)
+        dataframe = get_train_dataframe(RobertaConfig.model_type)
 
         if RobertaConfig.use_subset:
             dataframe = dataframe.sample(
@@ -172,7 +172,7 @@ class RobertaBase(JigsawTrainer):
 
 class e5Base(JigsawTrainer):
     def run(self):
-        dataframe = get_train_dataset(e5Config.model_type)
+        dataframe = get_train_dataframe(e5Config.model_type)
         dataframe = pd.DataFrame(
             dataframe[
                 ["anchor", "positive_example", "negative_example"]
@@ -235,7 +235,7 @@ class DebertaBase(JigsawTrainer):
     def run(self):
         os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
-        dataframe = get_train_dataset(DebertaConfig.model_type)
+        dataframe = get_train_dataframe(DebertaConfig.model_type)
 
         if DebertaConfig.use_subset:
             dataframe = dataframe.sample(

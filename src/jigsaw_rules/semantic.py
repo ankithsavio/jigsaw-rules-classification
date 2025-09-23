@@ -8,20 +8,20 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from jigsaw_rules.constants import EmbeddingConfig, e5Config
 from jigsaw_rules.inference import JigsawInference
 from jigsaw_rules.utils import (
-    build_dataset_e5,
-    build_dataset_emb,
-    get_train_dataset,
+    build_dataframe_e5,
+    build_dataframe_emb,
+    get_train_dataframe,
 )
 
 
 class Qwen3EmbEngine(JigsawInference):
     def get_dataset(self):
         dataframe = pd.read_csv(f"{self.data_path}/test.csv")
-        dataframe = build_dataset_emb(dataframe)
+        dataframe = build_dataframe_emb(dataframe)
         return dataframe
 
     def get_scores(self, test_dataframe):
-        corpus_dataframe = get_train_dataset(EmbeddingConfig.model_type)
+        corpus_dataframe = get_train_dataframe(EmbeddingConfig.model_type)
 
         # Load base model
         model = AutoModelForCausalLM.from_pretrained(self.model_path)
@@ -118,11 +118,11 @@ class Qwen3EmbEngine(JigsawInference):
 class e5BaseEngine(JigsawInference):
     def get_dataset(self):
         dataframe = pd.read_csv(f"{self.data_path}/test.csv")
-        dataframe = build_dataset_e5(dataframe)
+        dataframe = build_dataframe_e5(dataframe)
         return dataframe
 
     def get_scores(self, test_dataframe):
-        corpus_dataframe = get_train_dataset(e5Config.model_type)
+        corpus_dataframe = get_train_dataframe(e5Config.model_type)
 
         embedding_model = SentenceTransformer(
             model_name_or_path=self.model_path, device="cuda"

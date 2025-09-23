@@ -1,10 +1,9 @@
-import random
 import re
 
 import numpy as np
-import pandas as pd  # type: ignore
-from cleantext import clean  # type: ignore
-from tqdm.auto import tqdm  # type: ignore
+import pandas as pd
+from cleantext import clean
+from tqdm.auto import tqdm
 from transformers import AutoTokenizer
 
 from jigsaw_rules.constants import (
@@ -16,8 +15,23 @@ from jigsaw_rules.constants import (
     e5Config,
 )
 
-random.seed(42)
-np.random.seed(42)
+
+class DataframeFactory:
+    _builders = {}
+
+    @classmethod
+    def register(cls, model_type):
+        def wrapper(func):
+            cls._builders[model_type] = func  # register function
+            return func
+
+        return wrapper
+
+    @classmethod
+    def build(cls, model_type, *args, **kwargs):
+        if model_type not in cls._builders:
+            raise AttributeError(f"Unknown model type {model_type}")
+        return cls._builders[model_type](*args, *kwargs)
 
 
 def cleaner(text):
@@ -86,63 +100,6 @@ def url_to_semantics(text):
     if not all_semantics:
         return ""
     return f"\nURL Keywords: {' '.join(all_semantics)}"
-
-
-def build_prompt(row):
-    return (
-        f"{InstructConfig.base_prompt}\n"
-        f"Subreddit: r/{row['subreddit']}\n"
-        f"Rule: {row['rule']}\n"
-        "Examples:\n"
-        f"1) {row['positive_example']}\n"
-        f"{InstructConfig.complete_phrase} Yes\n"
-        f"2) {row['negative_example']}\n"
-        f"{InstructConfig.complete_phrase} No\n"
-        "---\n"
-        f"Comment: {row['body']}\n"
-        f"{InstructConfig.complete_phrase}"
-    )
-
-
-def build_prompt_chat(row, tokenizer):
-    text = (
-        f"r/{row['subreddit']}\n"
-        f"Rule: {row['rule']}\n"
-        "Examples:\n"
-        f"1) {row['positive_example']}\n"
-        f"{ChatConfig.complete_phrase} Yes\n"
-        f"2) {row['negative_example']}\n"
-        f"{ChatConfig.complete_phrase} No\n"
-        "---\n"
-        f"Comment: {row['body']}\n"
-        f"{ChatConfig.complete_phrase}"
-    )
-    messages = [
-        {"role": "system", "content": ChatConfig.base_prompt},
-        {"role": "user", "content": text},
-    ]
-
-    prompt = (
-        tokenizer.apply_chat_template(
-            messages,
-            add_generation_prompt=True,
-            tokenize=False,
-        )
-        + ChatConfig.complete_phrase
-    )
-    return prompt
-
-
-def build_prompt_emb(row):
-    return f"""r/{row["subreddit"]}\nComment: {row["body"]}"""
-
-
-def build_prompt_deberta(row):
-    rule = row.get("rule", "")
-    body = row.get("body", "")
-    url_features = url_to_semantics(body)
-
-    return f"{rule}[SEP]{body}{url_features}"
 
 
 def get_dataframe_to_train(data_path, include_train=True):
@@ -261,7 +218,27 @@ def get_dataframe_to_train(data_path, include_train=True):
     return dataframe
 
 
-def build_dataset(dataframe):
+@DataframeFactory.register(InstructConfig.model_type)
+def build_dataframe_instruct(dataframe=None):
+    def build_prompt(row):
+        return (
+            f"{InstructConfig.base_prompt}\n"
+            f"Subreddit: r/{row['subreddit']}\n"
+            f"Rule: {row['rule']}\n"
+            "Examples:\n"
+            f"1) {row['positive_example']}\n"
+            f"{InstructConfig.complete_phrase} Yes\n"
+            f"2) {row['negative_example']}\n"
+            f"{InstructConfig.complete_phrase} No\n"
+            "---\n"
+            f"Comment: {row['body']}\n"
+            f"{InstructConfig.complete_phrase}"
+        )
+
+    if not dataframe:  # training
+        dataframe = get_dataframe_to_train(
+            InstructConfig.data_path, InstructConfig.include_train
+        )
     dataframe["prompt"] = dataframe.apply(build_prompt, axis=1)
 
     if "rule_violation" in dataframe:
@@ -275,10 +252,43 @@ def build_dataset(dataframe):
     return dataframe
 
 
-def build_dataset_chat(dataframe):
+@DataframeFactory.register(ChatConfig.model_type)
+def build_dataframe_chat(dataframe=None):
+    def build_prompt(row, tokenizer):
+        text = (
+            f"r/{row['subreddit']}\n"
+            f"Rule: {row['rule']}\n"
+            "Examples:\n"
+            f"1) {row['positive_example']}\n"
+            f"{ChatConfig.complete_phrase} Yes\n"
+            f"2) {row['negative_example']}\n"
+            f"{ChatConfig.complete_phrase} No\n"
+            "---\n"
+            f"Comment: {row['body']}\n"
+            f"{ChatConfig.complete_phrase}"
+        )
+        messages = [
+            {"role": "system", "content": ChatConfig.base_prompt},
+            {"role": "user", "content": text},
+        ]
+
+        prompt = (
+            tokenizer.apply_chat_template(
+                messages,
+                add_generation_prompt=True,
+                tokenize=False,
+            )
+            + ChatConfig.complete_phrase
+        )
+        return prompt
+
+    if not dataframe:  # training
+        dataframe = get_dataframe_to_train(
+            ChatConfig.data_path, ChatConfig.include_train
+        )
     tokenizer = AutoTokenizer.from_pretrained(ChatConfig.model_path)
     dataframe["prompt"] = dataframe.apply(
-        lambda row: build_prompt_chat(row, tokenizer), axis=1
+        lambda row: build_prompt(row, tokenizer), axis=1
     )
 
     if "rule_violation" in dataframe:
@@ -292,9 +302,15 @@ def build_dataset_chat(dataframe):
     return dataframe
 
 
-def build_dataset_emb(dataframe):
-    # Semantic search
-    dataframe["prompt"] = dataframe.apply(build_prompt_emb, axis=1)
+def build_dataframe_emb(dataframe=None):
+    def build_prompt(row):
+        return f"""r/{row["subreddit"]}\nComment: {row["body"]}"""
+
+    if not dataframe:  # training
+        dataframe = get_dataframe_to_train(
+            EmbeddingConfig.data_path, EmbeddingConfig.include_train
+        )
+    dataframe["prompt"] = dataframe.apply(build_prompt, axis=1)
 
     if EmbeddingConfig.clean_text:
         tqdm.pandas(desc="cleaner")
@@ -311,8 +327,14 @@ def build_dataset_emb(dataframe):
     return dataframe
 
 
-def build_dataset_emb_swift(dataframe):
-    # Fine Tuning
+@DataframeFactory.register(EmbeddingConfig.model_type)
+def build_dataframe_emb_swift():
+    """
+    Swift framework Qwen3 Embedding Fine Tuning
+    """
+    dataframe = get_dataframe_to_train(
+        EmbeddingConfig.data_path, EmbeddingConfig.include_train
+    )
     dataframe["messages"] = dataframe.apply(
         lambda row: [
             {"role": "system", "content": EmbeddingConfig.base_query},
@@ -346,15 +368,26 @@ def build_dataset_emb_swift(dataframe):
         ],
         axis=1,
     )
-    return dataframe
+    return build_dataframe_emb(dataframe)
 
 
-def build_dataset_roberta(data_path, include_train=True):
-    if include_train:
-        train_df = pd.read_csv(f"{data_path}/train.csv")
+@DataframeFactory.register(RobertaConfig.model_type)
+def build_dataframe_roberta():
+    def build_prompt(row):
+        return (
+            "rule:"
+            + row["rule"]
+            + "subreddit:"
+            + row["subreddit"]
+            + "body:"
+            + row["body"]
+        )
+
+    if RobertaConfig.include_train:
+        train_df = pd.read_csv(f"{RobertaConfig.data_path}/train.csv")
     else:
         train_df = pd.DataFrame()
-    test_df = pd.read_csv(f"{data_path}/test.csv")
+    test_df = pd.read_csv(f"{RobertaConfig.data_path}/test.csv")
 
     test_df["positive"] = (
         test_df["positive_example_1"] + test_df["positive_example_2"]
@@ -381,49 +414,57 @@ def build_dataset_roberta(data_path, include_train=True):
         .reset_index(drop=True)
     )
 
-    if include_train:
+    if RobertaConfig.include_train:
         train_df = pd.DataFrame(
             train_df[["body", "rule", "subreddit", "rule_violation"]].copy()
         )
 
     train_df = pd.concat([train_df, df_add], axis=0)
 
-    train_df["input"] = (
-        "rule:"
-        + train_df["rule"]
-        + "subreddit:"
-        + train_df["subreddit"]
-        + "body:"
-        + train_df["body"]
-    )
+    train_df["input"] = train_df.apply(build_prompt, axis=1)
 
-    test_df["input"] = (
-        "rule:"
-        + test_df["rule"]
-        + "subreddit:"
-        + test_df["subreddit"]
-        + "body:"
-        + test_df["body"]
-    )
+    test_df["input"] = test_df.apply(build_prompt, axis=1)
 
     return train_df, test_df
 
 
-def build_dataset_e5(dataframe):
-    dataframe["anchor"] = (
-        "rule:"
-        + dataframe["rule"]
-        + "subreddit:"
-        + dataframe["subreddit"]
-        + "body:"
-        + dataframe["body"]
-    )
+@DataframeFactory.register(e5Config.model_type)
+def build_dataframe_e5(dataframe=None):
+    def build_prompt(row):
+        return (
+            "rule:"
+            + row["rule"]
+            + "subreddit:"
+            + row["subreddit"]
+            + "body:"
+            + row["body"]
+        )
+
+    if not dataframe:  # training
+        dataframe = get_dataframe_to_train(
+            e5Config.data_path, e5Config.include_train
+        )
+
+    dataframe["anchor"] = dataframe.apply(build_prompt, axis=1)
     return dataframe
 
 
-def build_dataset_deberta(dataframe):
+@DataframeFactory.register(DebertaConfig.model_type)
+def build_dataframe_deberta(dataframe=None):
+    def build_prompt(row):
+        rule = row["rule"]
+        body = row["body"]
+        url_features = url_to_semantics(body)
+
+        return f"{rule}[SEP]{body}{url_features}"
+
+    if not dataframe:  # training
+        dataframe = get_dataframe_to_train(
+            DebertaConfig.data_path, DebertaConfig.include_train
+        )
+
     dataframe = dataframe.copy()
-    dataframe["input_text"] = dataframe.apply(build_prompt_deberta, axis=1)
+    dataframe["input_text"] = dataframe.apply(build_prompt, axis=1)
 
     if "rule_violation" in dataframe:
         dataframe["completion"] = dataframe["rule_violation"].map(
@@ -436,37 +477,5 @@ def build_dataset_deberta(dataframe):
     return dataframe
 
 
-def get_train_dataset(model_type: str):  # train data optional during inference
-    if model_type == InstructConfig.model_type:
-        dataframe = get_dataframe_to_train(
-            InstructConfig.data_path, InstructConfig.include_train
-        )
-        dataset = build_dataset(dataframe)
-    elif model_type == ChatConfig.model_type:
-        dataframe = get_dataframe_to_train(
-            ChatConfig.data_path, ChatConfig.include_train
-        )
-        dataset = build_dataset_chat(dataframe)
-    elif model_type == EmbeddingConfig.model_type:
-        dataframe = get_dataframe_to_train(
-            EmbeddingConfig.data_path, ChatConfig.include_train
-        )
-        dataset = build_dataset_emb(dataframe)
-        dataset = build_dataset_emb_swift(dataset)
-    elif model_type == RobertaConfig.model_type:
-        dataset, _ = build_dataset_roberta(
-            RobertaConfig.data_path, RobertaConfig.include_train
-        )
-    elif model_type == e5Config.model_type:
-        dataframe = get_dataframe_to_train(
-            e5Config.data_path, e5Config.include_train
-        )
-        dataset = build_dataset_e5(dataframe)
-    elif model_type == DebertaConfig.model_type:
-        dataframe = get_dataframe_to_train(
-            DebertaConfig.data_path, DebertaConfig.include_train
-        )
-        dataset = build_dataset_deberta(dataframe)
-    else:
-        raise AttributeError("Unknow model type")
-    return dataset
+def get_train_dataframe(model_type):
+    return DataframeFactory.build(model_type)

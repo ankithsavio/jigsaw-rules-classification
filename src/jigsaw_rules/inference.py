@@ -16,7 +16,6 @@ from datasets import Dataset  # type: ignore
 from logits_processor_zoo.vllm import (  # type: ignore
     MultipleChoiceLogitsProcessor,
 )
-from sklearn.model_selection import train_test_split  # type: ignore
 from vllm.lora.request import LoRARequest
 
 from jigsaw_rules.constants import (
@@ -27,11 +26,10 @@ from jigsaw_rules.constants import (
 )
 from jigsaw_rules.dataset import RedditDataset
 from jigsaw_rules.utils import (
-    build_dataset,
-    build_dataset_chat,
-    build_dataset_deberta,
-    build_dataset_roberta,
-    url_to_semantics,
+    build_dataframe_chat,
+    build_dataframe_deberta,
+    build_dataframe_instruct,
+    build_dataframe_roberta,
 )
 
 
@@ -147,8 +145,8 @@ class InstructEngine(JigsawInference):
         mid = len(test_dataframe) // 2
         df0 = test_dataframe.iloc[:mid].reset_index(drop=True)
         df1 = test_dataframe.iloc[mid:].reset_index(drop=True)
-        df0 = Dataset.from_pandas(build_dataset(df0))
-        df1 = Dataset.from_pandas(build_dataset(df1))
+        df0 = Dataset.from_pandas(build_dataframe_instruct(df0))
+        df1 = Dataset.from_pandas(build_dataframe_instruct(df1))
         manager = mp.Manager()
         return_dict = manager.dict()
 
@@ -199,7 +197,7 @@ class ChatEngine(JigsawInference):
             errors="ignore",
         )
 
-        df = build_dataset_chat(dataframe)
+        df = build_dataframe_chat(dataframe)
         return df
 
     def run(self):
@@ -275,7 +273,7 @@ class ChatEngine(JigsawInference):
 
 class RobertaEngine(JigsawInference):
     def get_dataset(self):
-        _, df_test = build_dataset_roberta(self.data_path)
+        _, df_test = build_dataframe_roberta(self.data_path)
         return df_test
 
     def run(self):
@@ -314,8 +312,7 @@ class RobertaEngine(JigsawInference):
             max_length=512,
         )
 
-        dummy_labels = [0] * len(df_test)
-        test_dataset = RedditDataset(test_encodings, dummy_labels)
+        test_dataset = RedditDataset(test_encodings)
 
         test_outputs = trainer.predict(test_dataset)
         probs = torch.nn.functional.softmax(
@@ -332,7 +329,7 @@ class RobertaEngine(JigsawInference):
 class DebertaEngine(JigsawInference):
     def get_dataset(self):
         dataframe = pd.read_csv(f"{self.data_path}/test.csv")
-        dataframe = build_dataset_deberta(dataframe)
+        dataframe = build_dataframe_deberta(dataframe)
         return dataframe
 
     def run(self):
