@@ -19,7 +19,12 @@ from logits_processor_zoo.vllm import (  # type: ignore
 from sklearn.model_selection import train_test_split  # type: ignore
 from vllm.lora.request import LoRARequest
 
-from jigsaw_rules.constants import ChatConfig, InstructConfig, RobertaConfig
+from jigsaw_rules.constants import (
+    ChatConfig,
+    DebertaConfig,
+    InstructConfig,
+    RobertaConfig,
+)
 from jigsaw_rules.dataset import RedditDataset
 from jigsaw_rules.utils import (
     build_dataset,
@@ -324,7 +329,7 @@ class RobertaEngine(JigsawInference):
         submission_df.to_csv(self.save_path, index=False)
 
 
-class DebertaBase(JigsawInference):
+class DebertaEngine(JigsawInference):
     def get_dataset(self):
         dataframe = pd.read_csv(f"{self.data_path}/test.csv")
         dataframe = build_dataset_deberta(dataframe)
@@ -413,6 +418,13 @@ if __name__ == "__main__":
             data_path=RobertaConfig.data_path,
             model_path=RobertaConfig.ckpt_path,
             save_path=RobertaConfig.out_file,
+        )
+        inference.run()
+    elif args.type == DebertaConfig.model_type:
+        inference = DebertaEngine(
+            data_path=DebertaConfig.data_path,
+            model_path=DebertaConfig.ckpt_path,
+            save_path=DebertaConfig.out_file,
         )
         inference.run()
     else:

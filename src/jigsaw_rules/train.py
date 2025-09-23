@@ -309,3 +309,12 @@ if __name__ == "__main__":
             save_path=e5Config.ckpt_path,
         )
         trainer.run()
+    elif args.type == DebertaConfig.model_type:
+        trainer = DebertaBase(
+            data_path=DebertaConfig.data_path,
+            model_path=DebertaConfig.model_path,
+            save_path=DebertaConfig.ckpt_path,
+        )
+        trainer.run()
+    else:
+        raise AttributeError("Invalid inference type")
