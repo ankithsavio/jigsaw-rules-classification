@@ -26,6 +26,18 @@ class ChatConfig:
     subset = 0.5
 
 
+class DebertaConfig:
+    model_type = "deberta_small"
+    data_path = "/kaggle/input/jigsaw-agile-community-rules/"
+    model_path = "/kaggle/input/deberta-v3-small/transformers/default/1"
+    ckpt_path = "/kaggle/working/deberta-v3-small-jigsaw/"
+    positive_answer = 1
+    negative_answer = 0
+    out_file = "submission_deberta.csv"
+    use_subset = False
+    subset = 0.5
+
+
 class EmbeddingConfig:
     model_type = "embed"
     data_path = "/kaggle/input/jigsaw-agile-community-rules/"

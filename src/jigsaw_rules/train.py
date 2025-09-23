@@ -278,7 +278,7 @@ class DebertaBase(JigsawTrainer):
         trainer.train()
         trainer.save_model(self.save_path)
         tokenizer.save_pretrained(self.save_path)
-        
+
 
 if __name__ == "__main__":
     import argparse
