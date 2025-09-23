@@ -10,6 +10,7 @@ class InstructConfig:
     out_file = "submission_instruct.csv"
     use_subset = False
     subset = 0.5
+    include_train = True
 
 
 class ChatConfig:
@@ -24,18 +25,7 @@ class ChatConfig:
     out_file = "submission_chat.csv"
     use_subset = False
     subset = 0.5
-
-
-class DebertaConfig:
-    model_type = "deberta_small"
-    data_path = "/kaggle/input/jigsaw-agile-community-rules/"
-    model_path = "/kaggle/input/deberta-v3-small/transformers/default/1"
-    ckpt_path = "/kaggle/working/deberta-v3-small-jigsaw/"
-    positive_answer = 1
-    negative_answer = 0
-    out_file = "submission_deberta.csv"
-    use_subset = False
-    subset = 0.5
+    include_train = True
 
 
 class EmbeddingConfig:
@@ -52,6 +42,7 @@ class EmbeddingConfig:
     out_file = "submission_embedding.csv"
     use_subset = False
     subset = 0.5
+    include_train = True
 
 
 class RobertaConfig:
@@ -66,6 +57,7 @@ class RobertaConfig:
     out_file = "submission_roberta.csv"
     use_subset = False
     subset = 0.5
+    include_train = True
 
 
 class e5Config:
@@ -80,3 +72,17 @@ class e5Config:
     out_file = "submission_e5.csv"
     use_subset = False
     subset = 0.5
+    include_train = True
+
+
+class DebertaConfig:
+    model_type = "deberta_small"
+    data_path = "/kaggle/input/jigsaw-agile-community-rules/"
+    model_path = "/kaggle/input/deberta-v3-small/transformers/default/1"
+    ckpt_path = "/kaggle/working/deberta-v3-small-jigsaw/"
+    positive_answer = 1
+    negative_answer = 0
+    out_file = "submission_deberta.csv"
+    use_subset = False
+    subset = 0.5
+    include_train = True

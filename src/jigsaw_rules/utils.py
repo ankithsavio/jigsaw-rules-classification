@@ -145,51 +145,51 @@ def build_prompt_deberta(row):
     return f"{rule}[SEP]{body}{url_features}"
 
 
-def get_dataframe_to_train(data_path):
-    train_dataset = pd.read_csv(f"{data_path}/train.csv")
+def get_dataframe_to_train(data_path, include_train=True):
     test_dataset = pd.read_csv(f"{data_path}/test.csv")
-
     flatten = []
 
-    # ---------- process train data ----------
-    train_df = train_dataset[
-        [
-            "body",
-            "rule",
-            "subreddit",
-            "rule_violation",
-            "positive_example_1",
-            "positive_example_2",
-            "negative_example_1",
-            "negative_example_2",
-        ]
-    ].copy()
+    if include_train:
+        train_dataset = pd.read_csv(f"{data_path}/train.csv")
+        # ---------- process train data ----------
+        train_df = train_dataset[
+            [
+                "body",
+                "rule",
+                "subreddit",
+                "rule_violation",
+                "positive_example_1",
+                "positive_example_2",
+                "negative_example_1",
+                "negative_example_2",
+            ]
+        ].copy()
 
-    # Randomly select positive and negative examples
-    ## Undersampled
-    train_df["positive_example"] = np.where(
-        np.random.rand(len(train_df)) < 0.5,
-        train_df["positive_example_1"],
-        train_df["positive_example_2"],
-    )
-    train_df["negative_example"] = np.where(
-        np.random.rand(len(train_df)) < 0.5,
-        train_df["negative_example_1"],
-        train_df["negative_example_2"],
-    )
+        # Randomly select positive and negative examples
+        ## Undersampled
+        train_df["positive_example"] = np.where(
+            np.random.rand(len(train_df)) < 0.5,
+            train_df["positive_example_1"],
+            train_df["positive_example_2"],
+        )
+        train_df["negative_example"] = np.where(
+            np.random.rand(len(train_df)) < 0.5,
+            train_df["negative_example_1"],
+            train_df["negative_example_2"],
+        )
 
-    # Delete original columns
-    train_df.drop(
-        columns=[
-            "positive_example_1",
-            "positive_example_2",
-            "negative_example_1",
-            "negative_example_2",
-        ],
-        inplace=True,
-    )
+        # Delete original columns
+        train_df.drop(
+            columns=[
+                "positive_example_1",
+                "positive_example_2",
+                "negative_example_1",
+                "negative_example_2",
+            ],
+            inplace=True,
+        )
 
-    flatten.append(train_df)
+        flatten.append(train_df)
 
     # ---------- process test data ----------
 
@@ -349,8 +349,11 @@ def build_dataset_emb_swift(dataframe):
     return dataframe
 
 
-def build_dataset_roberta(data_path):
-    train_df = pd.read_csv(f"{data_path}/train.csv")
+def build_dataset_roberta(data_path, include_train=True):
+    if include_train:
+        train_df = pd.read_csv(f"{data_path}/train.csv")
+    else:
+        train_df = pd.DataFrame()
     test_df = pd.read_csv(f"{data_path}/test.csv")
 
     test_df["positive"] = (
@@ -378,9 +381,10 @@ def build_dataset_roberta(data_path):
         .reset_index(drop=True)
     )
 
-    train_df = pd.DataFrame(
-        train_df[["body", "rule", "subreddit", "rule_violation"]].copy()
-    )
+    if include_train:
+        train_df = pd.DataFrame(
+            train_df[["body", "rule", "subreddit", "rule_violation"]].copy()
+        )
 
     train_df = pd.concat([train_df, df_add], axis=0)
 
@@ -434,22 +438,34 @@ def build_dataset_deberta(dataframe):
 
 def get_train_dataset(model_type: str):  # train data optional during inference
     if model_type == InstructConfig.model_type:
-        dataframe = get_dataframe_to_train(InstructConfig.data_path)
+        dataframe = get_dataframe_to_train(
+            InstructConfig.data_path, InstructConfig.include_train
+        )
         dataset = build_dataset(dataframe)
     elif model_type == ChatConfig.model_type:
-        dataframe = get_dataframe_to_train(ChatConfig.data_path)
+        dataframe = get_dataframe_to_train(
+            ChatConfig.data_path, ChatConfig.include_train
+        )
         dataset = build_dataset_chat(dataframe)
     elif model_type == EmbeddingConfig.model_type:
-        dataframe = get_dataframe_to_train(EmbeddingConfig.data_path)
+        dataframe = get_dataframe_to_train(
+            EmbeddingConfig.data_path, ChatConfig.include_train
+        )
         dataset = build_dataset_emb(dataframe)
         dataset = build_dataset_emb_swift(dataset)
     elif model_type == RobertaConfig.model_type:
-        dataset, _ = build_dataset_roberta(RobertaConfig.data_path)
+        dataset, _ = build_dataset_roberta(
+            RobertaConfig.data_path, RobertaConfig.include_train
+        )
     elif model_type == e5Config.model_type:
-        dataframe = get_dataframe_to_train(e5Config.data_path)
+        dataframe = get_dataframe_to_train(
+            e5Config.data_path, e5Config.include_train
+        )
         dataset = build_dataset_e5(dataframe)
     elif model_type == DebertaConfig.model_type:
-        dataframe = get_dataframe_to_train(DebertaConfig.data_path)
+        dataframe = get_dataframe_to_train(
+            DebertaConfig.data_path, DebertaConfig.include_train
+        )
         dataset = build_dataset_deberta(dataframe)
     else:
         raise AttributeError("Unknow model type")
