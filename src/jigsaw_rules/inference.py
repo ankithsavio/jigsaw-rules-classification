@@ -18,7 +18,7 @@ from logits_processor_zoo.vllm import (  # type: ignore
 )
 from vllm.lora.request import LoRARequest
 
-from jigsaw_rules.constants import (
+from jigsaw_rules.configs import (
     ChatConfig,
     DebertaConfig,
     InstructConfig,

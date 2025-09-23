@@ -6,7 +6,7 @@ from cleantext import clean
 from tqdm.auto import tqdm
 from transformers import AutoTokenizer
 
-from jigsaw_rules.constants import (
+from jigsaw_rules.configs import (
     ChatConfig,
     DebertaConfig,
     EmbeddingConfig,
@@ -235,7 +235,7 @@ def build_dataframe_instruct(dataframe=None):
             f"{InstructConfig.complete_phrase}"
         )
 
-    if not dataframe:  # training
+    if dataframe is None:  # training
         dataframe = get_dataframe_to_train(
             InstructConfig.data_path, InstructConfig.include_train
         )
@@ -282,7 +282,7 @@ def build_dataframe_chat(dataframe=None):
         )
         return prompt
 
-    if not dataframe:  # training
+    if dataframe is None:  # training
         dataframe = get_dataframe_to_train(
             ChatConfig.data_path, ChatConfig.include_train
         )
@@ -306,7 +306,7 @@ def build_dataframe_emb(dataframe=None):
     def build_prompt(row):
         return f"""r/{row["subreddit"]}\nComment: {row["body"]}"""
 
-    if not dataframe:  # training
+    if dataframe is None:  # training
         dataframe = get_dataframe_to_train(
             EmbeddingConfig.data_path, EmbeddingConfig.include_train
         )
@@ -440,7 +440,7 @@ def build_dataframe_e5(dataframe=None):
             + row["body"]
         )
 
-    if not dataframe:  # training
+    if dataframe is None:  # training
         dataframe = get_dataframe_to_train(
             e5Config.data_path, e5Config.include_train
         )
@@ -458,7 +458,7 @@ def build_dataframe_deberta(dataframe=None):
 
         return f"{rule}[SEP]{body}{url_features}"
 
-    if not dataframe:  # training
+    if dataframe is None:  # training
         dataframe = get_dataframe_to_train(
             DebertaConfig.data_path, DebertaConfig.include_train
         )

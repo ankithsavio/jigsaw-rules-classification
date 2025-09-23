@@ -5,7 +5,7 @@ from sentence_transformers.util import dot_score, semantic_search
 from tqdm.auto import tqdm  # type: ignore
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from jigsaw_rules.constants import EmbeddingConfig, e5Config
+from jigsaw_rules.configs import EmbeddingConfig, e5Config
 from jigsaw_rules.inference import JigsawInference
 from jigsaw_rules.utils import (
     build_dataframe_e5,

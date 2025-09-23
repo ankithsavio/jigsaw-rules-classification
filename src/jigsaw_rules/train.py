@@ -30,7 +30,7 @@ from transformers import (
 from transformers.utils.import_utils import is_torch_bf16_gpu_available
 from trl import SFTConfig, SFTTrainer  # type: ignore
 
-from jigsaw_rules.constants import (
+from jigsaw_rules.configs import (
     DebertaConfig,
     InstructConfig,
     RobertaConfig,
