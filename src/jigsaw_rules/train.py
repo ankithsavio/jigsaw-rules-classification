@@ -113,7 +113,7 @@ class Instruct(JigsawTrainer):
 
 class RobertaBase(JigsawTrainer):
     def run(self):
-        dataframe = get_train_dataframe(RobertaConfig.model_type)
+        dataframe, _ = get_train_dataframe(RobertaConfig.model_type)
 
         if RobertaConfig.use_subset:
             dataframe = dataframe.sample(
