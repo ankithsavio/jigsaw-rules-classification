@@ -148,14 +148,13 @@ class RobertaBase(JigsawTrainer):
 
         training_args = TrainingArguments(
             output_dir="./results",
-            num_train_epochs=6,
-            per_device_train_batch_size=8,
-            per_device_eval_batch_size=8,
-            warmup_steps=500,
-            eval_strategy="epoch",
-            save_strategy="no",
+            num_train_epochs=2,
+            learning_rate=2e-5,
+            per_device_train_batch_size=16,
+            warmup_ratio=0.1,
+            weight_decay=0.01,
             report_to="none",
-            disable_tqdm=False,
+            save_strategy="no",
         )
 
         trainer = Trainer(
@@ -196,26 +195,22 @@ class e5Base(JigsawTrainer):
         loss = MultipleNegativesRankingLoss(model)
 
         args = SentenceTransformerTrainingArguments(
-            output_dir=self.save_path,
-            num_train_epochs=16,
-            per_device_train_batch_size=16,
-            per_device_eval_batch_size=16,
-            gradient_accumulation_steps=2,
+            utput_dir="./results",
+            num_train_epochs=2,
             learning_rate=2e-5,
+            per_device_train_batch_size=16,
             warmup_ratio=0.1,
-            fp16=True,
-            eval_strategy="steps",
-            eval_steps=100,
-            save_strategy="no",
+            weight_decay=0.01,
             report_to="none",
+            save_strategy="no",
         )
 
-        evaluator = TripletEvaluator(
-            anchors=list(test_dataset["anchor"]),
-            positives=list(test_dataset["positive"]),
-            negatives=list(test_dataset["negative"]),
-            main_distance_function=SimilarityFunction.COSINE,
-        )
+        # evaluator = TripletEvaluator(
+        #     anchors=list(test_dataset["anchor"]),
+        #     positives=list(test_dataset["positive"]),
+        #     negatives=list(test_dataset["negative"]),
+        #     main_distance_function=SimilarityFunction.COSINE,
+        # )
 
         trainer = SentenceTransformerTrainer(
             model=model,
@@ -223,11 +218,11 @@ class e5Base(JigsawTrainer):
             train_dataset=train_dataset,  # only 3 columns, anchor, positive, negative
             eval_dataset=test_dataset,
             loss=loss,
-            evaluator=evaluator,
+            # evaluator=evaluator,
         )
 
         trainer.train()
-        evaluator(model)
+        # evaluator(model)
         trainer.save_model(self.save_path)
 
 

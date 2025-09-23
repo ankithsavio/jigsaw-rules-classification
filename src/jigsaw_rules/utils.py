@@ -1,8 +1,8 @@
 import re
 
 import numpy as np
-import pandas as pd
-from cleantext import clean
+import pandas as pd  # type: ignore
+from cleantext import clean  # type: ignore
 from tqdm.auto import tqdm
 from transformers import AutoTokenizer
 
@@ -17,7 +17,7 @@ from jigsaw_rules.configs import (
 
 
 class DataframeFactory:
-    _builders = {}
+    _builders = {}  # type: ignore
 
     @classmethod
     def register(cls, model_type):

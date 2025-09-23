@@ -273,7 +273,7 @@ class ChatEngine(JigsawInference):
 
 class RobertaEngine(JigsawInference):
     def get_dataset(self):
-        _, df_test = build_dataframe_roberta(self.data_path)
+        _, df_test = build_dataframe_roberta()
         return df_test
 
     def run(self):
