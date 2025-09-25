@@ -101,10 +101,9 @@ class Qwen3EmbEngine(JigsawInference):
                 )
                 return semantic["score"].sum()
 
-            tqdm.pandas(desc=f"Add label for {rule=}")
             test_dataframe_part["rule_violation"] = test_dataframe_part[
                 "semantic"
-            ].progress_apply(get_score)
+            ].apply(get_score)
             result.append(
                 test_dataframe_part[["row_id", "rule_violation"]].copy()
             )
@@ -193,10 +192,9 @@ class E5BaseEngine(JigsawInference):
                 )
                 return semantic["score"].sum()
 
-            tqdm.pandas(desc=f"Add label for {rule=}")
             test_dataframe_part["rule_violation"] = test_dataframe_part[
                 "semantic"
-            ].progress_apply(get_score)
+            ].apply(get_score)
             result.append(
                 test_dataframe_part[["row_id", "rule_violation"]].copy()
             )
