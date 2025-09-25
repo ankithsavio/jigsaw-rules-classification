@@ -7,6 +7,7 @@ class InstructConfig:
     negative_answer = "No"
     complete_phrase = "Answer:"
     base_prompt = """You are given a comment from reddit and a rule. Your task is to classify whether the comment violates the rule. Only respond Yes/No."""
+    clean_text = True
     out_file = "submission_instruct.csv"
     use_subset = False
     subset = 0.5
@@ -22,6 +23,7 @@ class ChatConfig:
     negative_answer = "No"
     complete_phrase = "Violation:"
     base_prompt = """You are given a comment on reddit. Your task is to classify if it violates the given rule. Only respond Yes/No."""
+    clean_text = True
     out_file = "submission_chat.csv"
     use_subset = False
     subset = 0.5
@@ -52,6 +54,7 @@ class RobertaConfig:
     ckpt_path = "/kaggle/working/roberta-base-jigsaw/"
     positive_answer = 1
     negative_answer = 0
+    clean_text = True
     top_k = 2000
     batch_size = 128
     out_file = "submission_roberta.csv"
@@ -60,13 +63,14 @@ class RobertaConfig:
     include_train = True
 
 
-class e5Config:
+class E5Config:
     model_type = "e5_base_v2"
     data_path = "/kaggle/input/jigsaw-agile-community-rules/"
     model_path = "/kaggle/input/e5-base-v2/transformers/01/1"
     ckpt_path = "/kaggle/working/e5-base-v2-jigsaw/"
     positive_answer = 1
     negative_answer = 0
+    clean_text = True
     top_k = 2000
     batch_size = 128
     out_file = "submission_e5.csv"
@@ -82,6 +86,7 @@ class DebertaConfig:
     ckpt_path = "/kaggle/working/deberta-v3-small-jigsaw/"
     positive_answer = 1
     negative_answer = 0
+    clean_text = True
     out_file = "submission_deberta.csv"
     use_subset = False
     subset = 0.5

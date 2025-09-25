@@ -1,5 +1,5 @@
 """
-Designed to do inference on test data
+Designed to do inference with AutoRegressive and Bidirectional
 """
 
 import os

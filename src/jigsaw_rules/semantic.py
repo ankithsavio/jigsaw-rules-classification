@@ -1,3 +1,7 @@
+"""
+Designed for inference with semantic search
+"""
+
 import pandas as pd  # type: ignore
 from peft import PeftConfig, PeftModel
 from sentence_transformers import SentenceTransformer
@@ -5,7 +9,7 @@ from sentence_transformers.util import dot_score, semantic_search
 from tqdm.auto import tqdm  # type: ignore
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from jigsaw_rules.configs import EmbeddingConfig, e5Config
+from jigsaw_rules.configs import E5Config, EmbeddingConfig
 from jigsaw_rules.inference import JigsawInference
 from jigsaw_rules.utils import (
     build_dataframe_e5,
@@ -115,14 +119,14 @@ class Qwen3EmbEngine(JigsawInference):
         submission.to_csv(self.save_path, index=False)
 
 
-class e5BaseEngine(JigsawInference):
+class E5BaseEngine(JigsawInference):
     def get_dataset(self):
         dataframe = pd.read_csv(f"{self.data_path}/test.csv")
         dataframe = build_dataframe_e5(dataframe)
         return dataframe
 
     def get_scores(self, test_dataframe):
-        corpus_dataframe = get_train_dataframe(e5Config.model_type)
+        corpus_dataframe = get_train_dataframe(E5Config.model_type)
 
         embedding_model = SentenceTransformer(
             model_name_or_path=self.model_path, device="cuda"
@@ -148,7 +152,7 @@ class e5BaseEngine(JigsawInference):
             query_embeddings = embedding_model.encode(
                 sentences=test_dataframe_part["anchor"].tolist(),
                 prompt="query: ",
-                batch_size=e5Config.batch_size,
+                batch_size=E5Config.batch_size,
                 show_progress_bar=True,
                 convert_to_tensor=True,
                 device="cuda",
@@ -157,7 +161,7 @@ class e5BaseEngine(JigsawInference):
             document_embeddings = embedding_model.encode(
                 sentences=corpus_dataframe_part["anchor"].tolist(),
                 prompt="passage: ",
-                batch_size=e5Config.batch_size,
+                batch_size=E5Config.batch_size,
                 show_progress_bar=True,
                 convert_to_tensor=True,
                 device="cuda",
@@ -166,7 +170,7 @@ class e5BaseEngine(JigsawInference):
             test_dataframe_part["semantic"] = semantic_search(
                 query_embeddings,
                 document_embeddings,
-                top_k=e5Config.top_k,
+                top_k=E5Config.top_k,
                 score_function=dot_score,
             )
 
@@ -220,11 +224,11 @@ if __name__ == "__main__":
             save_path=EmbeddingConfig.out_file,
         )
         inference.run()
-    elif args.type == e5Config.model_type:
-        inference = e5BaseEngine(
-            data_path=e5Config.data_path,
-            model_path=e5Config.ckpt_path,
-            save_path=e5Config.out_file,
+    elif args.type == E5Config.model_type:
+        inference = E5BaseEngine(
+            data_path=E5Config.data_path,
+            model_path=E5Config.ckpt_path,
+            save_path=E5Config.out_file,
         )
         inference.run()
     else:

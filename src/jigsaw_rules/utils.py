@@ -3,16 +3,15 @@ import re
 import numpy as np
 import pandas as pd  # type: ignore
 from cleantext import clean  # type: ignore
-from tqdm.auto import tqdm
 from transformers import AutoTokenizer
 
 from jigsaw_rules.configs import (
     ChatConfig,
     DebertaConfig,
+    E5Config,
     EmbeddingConfig,
     InstructConfig,
     RobertaConfig,
-    e5Config,
 )
 
 
@@ -241,6 +240,9 @@ def build_dataframe_instruct(dataframe=None):
         )
     dataframe["prompt"] = dataframe.apply(build_prompt, axis=1)
 
+    if InstructConfig.clean_text:
+        dataframe["prompt"] = dataframe["prompt"].progress_apply(cleaner)
+
     if "rule_violation" in dataframe:
         dataframe["completion"] = dataframe["rule_violation"].map(
             {
@@ -291,6 +293,9 @@ def build_dataframe_chat(dataframe=None):
         lambda row: build_prompt(row, tokenizer), axis=1
     )
 
+    if ChatConfig.clean_text:
+        dataframe["prompt"] = dataframe["prompt"].progress_apply(cleaner)
+
     if "rule_violation" in dataframe:
         dataframe["completion"] = dataframe["rule_violation"].map(
             {
@@ -313,7 +318,6 @@ def build_dataframe_emb(dataframe=None):
     dataframe["prompt"] = dataframe.apply(build_prompt, axis=1)
 
     if EmbeddingConfig.clean_text:
-        tqdm.pandas(desc="cleaner")
         dataframe["prompt"] = dataframe["prompt"].progress_apply(cleaner)
 
     if "rule_violation" in dataframe.columns:
@@ -335,6 +339,7 @@ def build_dataframe_emb_swift():
     dataframe = get_dataframe_to_train(
         EmbeddingConfig.data_path, EmbeddingConfig.include_train
     )
+
     dataframe["messages"] = dataframe.apply(
         lambda row: [
             {"role": "system", "content": EmbeddingConfig.base_query},
@@ -368,6 +373,18 @@ def build_dataframe_emb_swift():
         ],
         axis=1,
     )
+
+    if EmbeddingConfig.clean_text:
+        dataframe["messages"] = dataframe["messages"].progress_apply(cleaner)
+
+        dataframe["positive_messages"] = dataframe[
+            "positive_messages"
+        ].progress_apply(cleaner)
+
+        dataframe["negative_messages"] = dataframe[
+            "negative_messages"
+        ].progress_apply(cleaner)
+
     return build_dataframe_emb(dataframe)
 
 
@@ -422,10 +439,14 @@ def build_dataframe_roberta():
 
     test_df["input"] = test_df.apply(build_prompt, axis=1)
 
+    if RobertaConfig.clean_text:
+        train_df["input"] = train_df["input"].progress_apply(cleaner)
+        test_df["input"] = test_df["input"].progress_apply(cleaner)
+
     return train_df, test_df
 
 
-@DataframeFactory.register(e5Config.model_type)
+@DataframeFactory.register(E5Config.model_type)
 def build_dataframe_e5(dataframe=None):
     def build_prompt(row):
         return (
@@ -439,10 +460,12 @@ def build_dataframe_e5(dataframe=None):
 
     if dataframe is None:  # training
         dataframe = get_dataframe_to_train(
-            e5Config.data_path, e5Config.include_train
+            E5Config.data_path, E5Config.include_train
         )
 
     dataframe["anchor"] = dataframe.apply(build_prompt, axis=1)
+    if E5Config.clean_text:
+        dataframe["anchor"] = dataframe["anchor"].progress_apply(cleaner)
     return dataframe
 
 
@@ -462,6 +485,11 @@ def build_dataframe_deberta(dataframe=None):
 
     dataframe = dataframe.copy()
     dataframe["input_text"] = dataframe.apply(build_prompt, axis=1)
+
+    if DebertaConfig.clean_text:
+        dataframe["input_text"] = dataframe["input_text"].progress_apply(
+            cleaner
+        )
 
     if "rule_violation" in dataframe:
         dataframe["completion"] = dataframe["rule_violation"].map(

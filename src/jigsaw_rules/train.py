@@ -1,5 +1,5 @@
 """
-Designed to train Qwen0.6b during submission
+Designed for Test Time Fine Tuning (TTFT)
 """
 
 import os
@@ -11,10 +11,6 @@ from sentence_transformers import (
     SentenceTransformer,
     SentenceTransformerTrainer,
     SentenceTransformerTrainingArguments,
-)
-from sentence_transformers.evaluation import (
-    SimilarityFunction,
-    TripletEvaluator,
 )
 from sentence_transformers.losses import MultipleNegativesRankingLoss
 from sklearn.model_selection import train_test_split  # type: ignore
@@ -32,9 +28,9 @@ from trl import SFTConfig, SFTTrainer  # type: ignore
 
 from jigsaw_rules.configs import (
     DebertaConfig,
+    E5Config,
     InstructConfig,
     RobertaConfig,
-    e5Config,
 )
 from jigsaw_rules.dataset import RedditDataset
 from jigsaw_rules.utils import get_train_dataframe
@@ -169,9 +165,9 @@ class RobertaBase(JigsawTrainer):
         tokenizer.save_pretrained(self.save_path)
 
 
-class e5Base(JigsawTrainer):
+class E5Base(JigsawTrainer):
     def run(self):
-        dataframe = get_train_dataframe(e5Config.model_type)
+        dataframe = get_train_dataframe(E5Config.model_type)
         dataframe = pd.DataFrame(
             dataframe[
                 ["anchor", "positive_example", "negative_example"]
@@ -179,9 +175,9 @@ class e5Base(JigsawTrainer):
         )
         dataframe.columns = ["anchor", "positive", "negative"]
 
-        if e5Config.use_subset:
+        if E5Config.use_subset:
             dataframe = dataframe.sample(
-                frac=e5Config.subset, random_state=42
+                frac=E5Config.subset, random_state=42
             ).reset_index(drop=True)
 
         dataset = Dataset.from_pandas(dataframe).train_test_split(
@@ -195,7 +191,7 @@ class e5Base(JigsawTrainer):
         loss = MultipleNegativesRankingLoss(model)
 
         args = SentenceTransformerTrainingArguments(
-            utput_dir="./results",
+            output_dir="./results",
             num_train_epochs=2,
             learning_rate=2e-5,
             per_device_train_batch_size=16,
@@ -205,24 +201,15 @@ class e5Base(JigsawTrainer):
             save_strategy="no",
         )
 
-        # evaluator = TripletEvaluator(
-        #     anchors=list(test_dataset["anchor"]),
-        #     positives=list(test_dataset["positive"]),
-        #     negatives=list(test_dataset["negative"]),
-        #     main_distance_function=SimilarityFunction.COSINE,
-        # )
-
         trainer = SentenceTransformerTrainer(
             model=model,
             args=args,
             train_dataset=train_dataset,  # only 3 columns, anchor, positive, negative
             eval_dataset=test_dataset,
             loss=loss,
-            # evaluator=evaluator,
         )
 
         trainer.train()
-        # evaluator(model)
         trainer.save_model(self.save_path)
 
 
@@ -297,11 +284,11 @@ if __name__ == "__main__":
             save_path=RobertaConfig.ckpt_path,
         )
         trainer.run()
-    elif args.type == e5Config.model_type:
-        trainer = e5Base(
-            data_path=e5Config.data_path,
-            model_path=e5Config.model_path,
-            save_path=e5Config.ckpt_path,
+    elif args.type == E5Config.model_type:
+        trainer = E5Base(
+            data_path=E5Config.data_path,
+            model_path=E5Config.model_path,
+            save_path=E5Config.ckpt_path,
         )
         trainer.run()
     elif args.type == DebertaConfig.model_type:
