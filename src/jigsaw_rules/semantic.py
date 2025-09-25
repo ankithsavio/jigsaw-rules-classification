@@ -20,7 +20,10 @@ from jigsaw_rules.utils import (
 
 class Qwen3EmbEngine(JigsawInference):
     def get_dataset(self):
-        dataframe = pd.read_csv(f"{self.data_path}/test.csv")
+        if EmbeddingConfig.test_file is None:
+            dataframe = pd.read_csv(f"{self.data_path}/test.csv")
+        else:
+            dataframe = pd.read_csv(EmbeddingConfig.test_file)
         dataframe = build_dataframe_emb(dataframe)
         return dataframe
 
@@ -121,7 +124,10 @@ class Qwen3EmbEngine(JigsawInference):
 
 class E5BaseEngine(JigsawInference):
     def get_dataset(self):
-        dataframe = pd.read_csv(f"{self.data_path}/test.csv")
+        if E5Config.test_file is None:
+            dataframe = pd.read_csv(f"{self.data_path}/test.csv")
+        else:
+            dataframe = pd.read_csv(E5Config.test_file)
         dataframe = build_dataframe_e5(dataframe)
         return dataframe
 

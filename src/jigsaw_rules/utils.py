@@ -401,7 +401,11 @@ def build_dataframe_roberta():
         train_df = pd.read_csv(f"{RobertaConfig.data_path}/train.csv")
     else:
         train_df = pd.DataFrame()
-    test_df = pd.read_csv(f"{RobertaConfig.data_path}/test.csv")
+
+    if RobertaConfig.test_file is None:
+        test_df = pd.read_csv(f"{RobertaConfig.data_path}/test.csv")
+    else:
+        test_df = pd.read_csv(RobertaConfig.test_file)
 
     test_df["positive"] = (
         test_df["positive_example_1"] + test_df["positive_example_2"]

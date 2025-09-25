@@ -9,6 +9,7 @@ class InstructConfig:
     base_prompt = """You are given a comment from reddit and a rule. Your task is to classify whether the comment violates the rule. Only respond Yes/No."""
     clean_text = True
     out_file = "submission_instruct.csv"
+    test_file = None  # inference on different file
     use_subset = False
     subset = 0.5
     include_train = True
@@ -25,6 +26,7 @@ class ChatConfig:
     base_prompt = """You are given a comment on reddit. Your task is to classify if it violates the given rule. Only respond Yes/No."""
     clean_text = True
     out_file = "submission_chat.csv"
+    test_file = None
     use_subset = False
     subset = 0.5
     include_train = True
@@ -42,6 +44,7 @@ class EmbeddingConfig:
     top_k = 2000
     batch_size = 128
     out_file = "submission_embedding.csv"
+    test_file = None
     use_subset = False
     subset = 0.5
     include_train = True
@@ -58,6 +61,7 @@ class RobertaConfig:
     top_k = 2000
     batch_size = 128
     out_file = "submission_roberta.csv"
+    test_file = None
     use_subset = False
     subset = 0.5
     include_train = True
@@ -74,6 +78,7 @@ class E5Config:
     top_k = 2000
     batch_size = 128
     out_file = "submission_e5.csv"
+    test_file = None
     use_subset = False
     subset = 0.5
     include_train = True
@@ -88,6 +93,7 @@ class DebertaConfig:
     negative_answer = 0
     clean_text = True
     out_file = "submission_deberta.csv"
+    test_file = None
     use_subset = False
     subset = 0.5
     include_train = True

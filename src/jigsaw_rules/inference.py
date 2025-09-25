@@ -110,7 +110,10 @@ class InstructEngine(JigsawInference):
         return_dict[device_id] = preds
 
     def get_dataset(self):
-        dataframe = pd.read_csv(f"{self.data_path}/test.csv")
+        if InstructConfig.test_file is None:
+            dataframe = pd.read_csv(f"{self.data_path}/test.csv")
+        else:
+            dataframe = pd.read_csv(InstructConfig.test_file)
 
         # randomly selected examples
         dataframe["positive_example"] = dataframe.apply(
@@ -204,7 +207,10 @@ class ChatEngine(JigsawInference):
         """
         Model Parallelism
         """
-        test_dataframe = pd.read_csv(f"{self.data_path}/test.csv")
+        if ChatConfig.test_file is None:
+            test_dataframe = pd.read_csv(f"{self.data_path}/test.csv")
+        else:
+            test_dataframe = pd.read_csv(ChatConfig.test_file)
         dataset = self.get_dataset(test_dataframe)
         dataset = Dataset.from_pandas(dataset)
 
@@ -328,7 +334,10 @@ class RobertaEngine(JigsawInference):
 
 class DebertaEngine(JigsawInference):
     def get_dataset(self):
-        dataframe = pd.read_csv(f"{self.data_path}/test.csv")
+        if DebertaConfig.test_file is None:
+            dataframe = pd.read_csv(f"{self.data_path}/test.csv")
+        else:
+            dataframe = pd.read_csv(DebertaConfig.test_file)
         dataframe = build_dataframe_deberta(dataframe)
         return dataframe
 
