@@ -230,7 +230,7 @@ class DebertaBase(JigsawTrainer):
         train_encodings = tokenizer(
             dataframe["input_text"].tolist(),
             truncation=True,
-            max_length=256,
+            max_length=512,
         )
 
         train_labels = dataframe["rule_violation"].tolist()
@@ -242,9 +242,9 @@ class DebertaBase(JigsawTrainer):
 
         training_args = TrainingArguments(
             output_dir="./results",
-            num_train_epochs=2,
+            num_train_epochs=3,
             learning_rate=2e-5,
-            per_device_train_batch_size=16,
+            per_device_train_batch_size=8,
             warmup_ratio=0.1,
             weight_decay=0.01,
             report_to="none",
