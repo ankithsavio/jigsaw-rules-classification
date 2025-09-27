@@ -102,6 +102,8 @@ def url_to_semantics(text):
 
 
 def get_dataframe_to_train(data_path, include_train=True, subset=None):
+    candidate_datasets = []
+
     if subset is None:
         test_dataset = pd.read_csv(f"{data_path}/test.csv")
     else:
@@ -112,112 +114,77 @@ def get_dataframe_to_train(data_path, include_train=True, subset=None):
         )
 
     flatten = []
+    candidate_datasets.append(test_dataset)
 
     if include_train:
         train_dataset = pd.read_csv(f"{data_path}/train.csv")
-        # ---------- process train data ----------
-        train_df = train_dataset[
-            [
-                "body",
-                "rule",
-                "subreddit",
-                "rule_violation",
-                "positive_example_1",
-                "positive_example_2",
-                "negative_example_1",
-                "negative_example_2",
-            ]
-        ].copy()
-
-        # Randomly select positive and negative examples
-        ## Undersampled
-        train_df["positive_example"] = np.where(
-            np.random.rand(len(train_df)) < 0.5,
-            train_df["positive_example_1"],
-            train_df["positive_example_2"],
-        )
-        train_df["negative_example"] = np.where(
-            np.random.rand(len(train_df)) < 0.5,
-            train_df["negative_example_1"],
-            train_df["negative_example_2"],
-        )
-
-        # Delete original columns
-        train_df.drop(
-            columns=[
-                "positive_example_1",
-                "positive_example_2",
-                "negative_example_1",
-                "negative_example_2",
-            ],
-            inplace=True,
-        )
-
-        flatten.append(train_df)
-
-    # ---------- process test data ----------
+        candidate_datasets.append(train_dataset)
 
     ## test data is not labelled therefore use the example to create additional data for training
-    for violation_type in ["positive", "negative"]:
-        for i in range(1, 3):
-            sub_dataset = test_dataset[
-                [
-                    "rule",
-                    "subreddit",
-                    "positive_example_1",
-                    "positive_example_2",
-                    "negative_example_1",
-                    "negative_example_2",
-                ]
-            ].copy()
-            if violation_type == "positive":
-                # body uses the current positive_example
-                body_col = f"positive_example_{i}"
-                other_positive_col = (
-                    f"positive_example_{3 - i}"  # another positive
-                )
-                sub_dataset["body"] = sub_dataset[body_col]
-                sub_dataset["positive_example"] = sub_dataset[
-                    other_positive_col
-                ]
-                # negative_example randomly selected
-                sub_dataset["negative_example"] = np.where(
-                    np.random.rand(len(sub_dataset)) < 0.5,
-                    sub_dataset["negative_example_1"],
-                    sub_dataset["negative_example_2"],
-                )
-                sub_dataset["rule_violation"] = 1
+    for dataset in candidate_datasets:
+        for violation_type in ["positive", "negative"]:
+            for i in range(1, 3):
+                sub_dataset = dataset[
+                    [
+                        "rule",
+                        "subreddit",
+                        "positive_example_1",
+                        "positive_example_2",
+                        "negative_example_1",
+                        "negative_example_2",
+                    ]
+                ].copy()
+                if violation_type == "positive":
+                    # body uses the current positive_example
+                    body_col = f"positive_example_{i}"
+                    other_positive_col = (
+                        f"positive_example_{3 - i}"  # another positive
+                    )
+                    sub_dataset["body"] = sub_dataset[body_col]
+                    sub_dataset["positive_example"] = sub_dataset[
+                        other_positive_col
+                    ]
+                    # negative_example randomly selected
+                    sub_dataset["negative_example"] = np.where(
+                        np.random.rand(len(sub_dataset)) < 0.5,
+                        sub_dataset["negative_example_1"],
+                        sub_dataset["negative_example_2"],
+                    )
+                    sub_dataset["rule_violation"] = 1
 
-            else:  # violation_type == "negative"
-                body_col = f"negative_example_{i}"
-                other_negative_col = f"negative_example_{3 - i}"
-                sub_dataset["body"] = sub_dataset[body_col]
-                sub_dataset["negative_example"] = sub_dataset[
-                    other_negative_col
-                ]
-                sub_dataset["positive_example"] = np.where(
-                    np.random.rand(len(sub_dataset)) < 0.5,
-                    sub_dataset["positive_example_1"],
-                    sub_dataset["positive_example_2"],
+                else:  # violation_type == "negative"
+                    body_col = f"negative_example_{i}"
+                    other_negative_col = f"negative_example_{3 - i}"
+                    sub_dataset["body"] = sub_dataset[body_col]
+                    sub_dataset["negative_example"] = sub_dataset[
+                        other_negative_col
+                    ]
+                    sub_dataset["positive_example"] = np.where(
+                        np.random.rand(len(sub_dataset)) < 0.5,
+                        sub_dataset["positive_example_1"],
+                        sub_dataset["positive_example_2"],
+                    )
+                    sub_dataset["rule_violation"] = 0
+
+                # Delete the original candidate column
+                sub_dataset.drop(
+                    columns=[
+                        "positive_example_1",
+                        "positive_example_2",
+                        "negative_example_1",
+                        "negative_example_2",
+                    ],
+                    inplace=True,
                 )
-                sub_dataset["rule_violation"] = 0
 
-            # Delete the original candidate column
-            sub_dataset.drop(
-                columns=[
-                    "positive_example_1",
-                    "positive_example_2",
-                    "negative_example_1",
-                    "negative_example_2",
-                ],
-                inplace=True,
-            )
-
-            flatten.append(sub_dataset)
+                flatten.append(sub_dataset)
 
     # merge all DataFrame
     dataframe = pd.concat(flatten, axis=0)
-    dataframe = dataframe.drop_duplicates(ignore_index=True)
+
+    dataframe = dataframe.drop_duplicates(
+        subset=["body", "rule"], keep="first", ignore_index=True
+    )
     dataframe = dataframe.sample(frac=1, random_state=42).reset_index(
         drop=True  # shuffle
     )

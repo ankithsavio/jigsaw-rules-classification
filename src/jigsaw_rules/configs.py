@@ -45,8 +45,8 @@ class EmbeddingConfig:
     batch_size = 128
     out_file = "submission_embedding.csv"
     test_file = None
-    use_subset = False
-    subset = 0.5
+    use_subset = True
+    subset = 0.6
     include_train = True
 
 
