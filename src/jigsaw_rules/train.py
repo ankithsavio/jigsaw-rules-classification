@@ -50,11 +50,6 @@ class Instruct(JigsawTrainer):
     def run(self):
         dataframe = get_train_dataframe(InstructConfig.model_type)
 
-        if InstructConfig.use_subset:
-            dataframe = dataframe.sample(
-                frac=InstructConfig.subset, random_state=42
-            ).reset_index(drop=True)
-
         train_dataset = Dataset.from_pandas(dataframe)
 
         lora_config = LoraConfig(
@@ -110,11 +105,6 @@ class Instruct(JigsawTrainer):
 class RobertaBase(JigsawTrainer):
     def run(self):
         dataframe, _ = get_train_dataframe(RobertaConfig.model_type)
-
-        if RobertaConfig.use_subset:
-            dataframe = dataframe.sample(
-                frac=RobertaConfig.subset, random_state=42
-            ).reset_index(drop=True)
 
         X = dataframe["input"].tolist()
         y = dataframe["rule_violation"].tolist()
@@ -175,11 +165,6 @@ class E5Base(JigsawTrainer):
         )
         dataframe.columns = ["anchor", "positive", "negative"]
 
-        if E5Config.use_subset:
-            dataframe = dataframe.sample(
-                frac=E5Config.subset, random_state=42
-            ).reset_index(drop=True)
-
         dataset = Dataset.from_pandas(dataframe).train_test_split(
             test_size=0.01, seed=42
         )
@@ -218,11 +203,6 @@ class DebertaBase(JigsawTrainer):
         os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
         dataframe = get_train_dataframe(DebertaConfig.model_type)
-
-        if DebertaConfig.use_subset:
-            dataframe = dataframe.sample(
-                frac=DebertaConfig.subset, random_state=42
-            ).reset_index(drop=True)
 
         tokenizer = DebertaV2Tokenizer.from_pretrained(self.model_path)
         collator = DataCollatorWithPadding(tokenizer)

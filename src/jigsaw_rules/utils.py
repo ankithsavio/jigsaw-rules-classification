@@ -101,8 +101,16 @@ def url_to_semantics(text):
     return f"\nURL Keywords: {' '.join(all_semantics)}"
 
 
-def get_dataframe_to_train(data_path, include_train=True):
-    test_dataset = pd.read_csv(f"{data_path}/test.csv")
+def get_dataframe_to_train(data_path, include_train=True, subset=None):
+    if subset is None:
+        test_dataset = pd.read_csv(f"{data_path}/test.csv")
+    else:
+        test_dataset = (
+            pd.read_csv(f"{data_path}/test.csv")
+            .sample(frac=subset, random_state=42)
+            .reset_index(drop=True)
+        )
+
     flatten = []
 
     if include_train:
@@ -235,9 +243,17 @@ def build_dataframe_instruct(dataframe=None):
         )
 
     if dataframe is None:  # training
-        dataframe = get_dataframe_to_train(
-            InstructConfig.data_path, InstructConfig.include_train
-        )
+        if not InstructConfig.use_subset:
+            dataframe = get_dataframe_to_train(
+                InstructConfig.data_path, InstructConfig.include_train
+            )
+        else:
+            dataframe = get_dataframe_to_train(
+                InstructConfig.data_path,
+                InstructConfig.include_train,
+                InstructConfig.subset,
+            )
+
     dataframe["prompt"] = dataframe.apply(build_prompt, axis=1)
 
     if InstructConfig.clean_text:
@@ -285,9 +301,17 @@ def build_dataframe_chat(dataframe=None):
         return prompt
 
     if dataframe is None:  # training
-        dataframe = get_dataframe_to_train(
-            ChatConfig.data_path, ChatConfig.include_train
-        )
+        if not ChatConfig.use_subset:
+            dataframe = get_dataframe_to_train(
+                ChatConfig.data_path, ChatConfig.include_train
+            )
+        else:
+            dataframe = get_dataframe_to_train(
+                ChatConfig.data_path,
+                ChatConfig.include_train,
+                ChatConfig.subset,
+            )
+
     tokenizer = AutoTokenizer.from_pretrained(ChatConfig.model_path)
     dataframe["prompt"] = dataframe.apply(
         lambda row: build_prompt(row, tokenizer), axis=1
@@ -312,9 +336,16 @@ def build_dataframe_emb(dataframe=None):
         return f"""r/{row["subreddit"]}\nComment: {row["body"]}"""
 
     if dataframe is None:  # training
-        dataframe = get_dataframe_to_train(
-            EmbeddingConfig.data_path, EmbeddingConfig.include_train
-        )
+        if not EmbeddingConfig.use_subset:
+            dataframe = get_dataframe_to_train(
+                EmbeddingConfig.data_path, EmbeddingConfig.include_train
+            )
+        else:
+            dataframe = get_dataframe_to_train(
+                EmbeddingConfig.data_path,
+                EmbeddingConfig.include_train,
+                EmbeddingConfig.subset,
+            )
     dataframe["prompt"] = dataframe.apply(build_prompt, axis=1)
 
     if EmbeddingConfig.clean_text:
@@ -447,6 +478,10 @@ def build_dataframe_roberta():
         train_df["input"] = train_df["input"].apply(cleaner)
         test_df["input"] = test_df["input"].apply(cleaner)
 
+    if RobertaConfig.use_subset:
+        train_df = train_df.sample(
+            frac=RobertaConfig.subset, random_state=42
+        ).reset_index(drop=True)
     return train_df, test_df
 
 
@@ -463,9 +498,14 @@ def build_dataframe_e5(dataframe=None):
         )
 
     if dataframe is None:  # training
-        dataframe = get_dataframe_to_train(
-            E5Config.data_path, E5Config.include_train
-        )
+        if not E5Config.use_subset:
+            dataframe = get_dataframe_to_train(
+                E5Config.data_path, E5Config.include_train
+            )
+        else:
+            dataframe = get_dataframe_to_train(
+                E5Config.data_path, E5Config.include_train, E5Config.subset
+            )
 
     dataframe["anchor"] = dataframe.apply(build_prompt, axis=1)
     if E5Config.clean_text:
@@ -483,9 +523,17 @@ def build_dataframe_deberta(dataframe=None):
         return f"{rule}[SEP]{body}{url_features}"
 
     if dataframe is None:  # training
-        dataframe = get_dataframe_to_train(
-            DebertaConfig.data_path, DebertaConfig.include_train
-        )
+        if not DebertaConfig.use_subset:
+            dataframe = get_dataframe_to_train(
+                DebertaConfig.data_path,
+                DebertaConfig.include_train,
+            )
+        else:
+            dataframe = get_dataframe_to_train(
+                DebertaConfig.data_path,
+                DebertaConfig.include_train,
+                DebertaConfig.subset,
+            )
 
     dataframe = dataframe.copy()
     dataframe["input_text"] = dataframe.apply(build_prompt, axis=1)
