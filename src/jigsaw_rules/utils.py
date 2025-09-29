@@ -182,9 +182,7 @@ def get_dataframe_to_train(data_path, include_train=True, subset=None):
     # merge all DataFrame
     dataframe = pd.concat(flatten, axis=0)
 
-    dataframe = dataframe.drop_duplicates(
-        subset=["body", "rule"], keep="first", ignore_index=True
-    )
+    dataframe = dataframe.drop_duplicates(ignore_index=True)
     dataframe = dataframe.sample(frac=1, random_state=42).reset_index(
         drop=True  # shuffle
     )
@@ -237,20 +235,21 @@ def build_dataframe_instruct(dataframe=None):
     return dataframe
 
 
-@DataframeFactory.register(ChatConfig.model_type)
-def build_dataframe_chat(dataframe=None):
+def build_dataframe_chat(dataframe):
     def build_prompt(row, tokenizer):
         text = (
-            f"r/{row['subreddit']}\n"
+            f"\nr/{row['subreddit']}\n"
             f"Rule: {row['rule']}\n"
-            "Examples:\n"
-            f"1) {row['positive_example']}\n"
-            f"{ChatConfig.complete_phrase} Yes\n"
-            f"2) {row['negative_example']}\n"
-            f"{ChatConfig.complete_phrase} No\n"
-            "---\n"
-            f"Comment: {row['body']}\n"
-            f"{ChatConfig.complete_phrase}"
+            "\n"
+            f"1) {row['positive_example_1']}\n"
+            f"{ChatConfig.complete_phrase} Yes\n\n"
+            f"2) {row['positive_example_2']}\n"
+            f"{ChatConfig.complete_phrase} Yes\n\n"
+            f"3) {row['negative_example_1']}\n"
+            f"{ChatConfig.complete_phrase} No\n\n"
+            f"4) {row['negative_example_2']}\n"
+            f"{ChatConfig.complete_phrase} No\n\n"
+            f"5) {row['body']}\n"
         )
         messages = [
             {"role": "system", "content": ChatConfig.base_prompt},
@@ -263,21 +262,9 @@ def build_dataframe_chat(dataframe=None):
                 add_generation_prompt=True,
                 tokenize=False,
             )
-            + ChatConfig.complete_phrase
+            + "Answer:"
         )
         return prompt
-
-    if dataframe is None:  # training
-        if not ChatConfig.use_subset:
-            dataframe = get_dataframe_to_train(
-                ChatConfig.data_path, ChatConfig.include_train
-            )
-        else:
-            dataframe = get_dataframe_to_train(
-                ChatConfig.data_path,
-                ChatConfig.include_train,
-                ChatConfig.subset,
-            )
 
     tokenizer = AutoTokenizer.from_pretrained(ChatConfig.model_path)
     dataframe["prompt"] = dataframe.apply(
