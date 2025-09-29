@@ -1,4 +1,16 @@
-class InstructConfig:
+class BaseConfig:
+    # Training
+    EPOCHS = 3
+    LEARNING_RATE = 2e-05
+    MAX_LENGTH = 512
+    BATCH_SIZE = 8
+
+    # Evaluation
+    N_SPLITS = 5
+    RANDOM_STATE = 42
+
+
+class InstructConfig(BaseConfig):
     model_type = "instruct"
     data_path = "/kaggle/input/jigsaw-agile-community-rules/"
     model_path = "/kaggle/input/qwen2.5/transformers/0.5b-instruct-gptq-int4/1"
@@ -15,7 +27,7 @@ class InstructConfig:
     include_train = True
 
 
-class ChatConfig:
+class ChatConfig(BaseConfig):
     model_type = "chat"
     data_path = "/kaggle/input/jigsaw-agile-community-rules/"
     model_path = "/kaggle/input/qwen2.5/transformers/14b-instruct-gptq-int4/1"
@@ -32,7 +44,7 @@ class ChatConfig:
     include_train = True
 
 
-class EmbeddingConfig:
+class EmbeddingConfig(BaseConfig):
     model_type = "embed"
     data_path = "/kaggle/input/jigsaw-agile-community-rules/"
     model_path = "/kaggle/input/qwen-3-embedding/transformers/0.6b/1"
@@ -50,7 +62,7 @@ class EmbeddingConfig:
     include_train = True
 
 
-class RobertaConfig:
+class RobertaConfig(BaseConfig):
     model_type = "roberta_base"
     data_path = "/kaggle/input/jigsaw-agile-community-rules/"
     model_path = "/kaggle/input/roberta-base/transformers/default/1"
@@ -67,7 +79,7 @@ class RobertaConfig:
     include_train = True
 
 
-class E5Config:
+class E5Config(BaseConfig):
     model_type = "e5_base_v2"
     data_path = "/kaggle/input/jigsaw-agile-community-rules/"
     model_path = "/kaggle/input/e5-base-v2/transformers/01/1"
@@ -84,7 +96,7 @@ class E5Config:
     include_train = True
 
 
-class DebertaConfig:
+class DebertaConfig(BaseConfig):
     model_type = "deberta_base"
     data_path = "/kaggle/input/jigsaw-agile-community-rules/"
     model_path = "/kaggle/input/deberta-v3-base/transformers/default/1"

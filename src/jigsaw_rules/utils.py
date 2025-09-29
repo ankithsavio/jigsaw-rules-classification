@@ -30,7 +30,7 @@ class DataframeFactory:
     def build(cls, model_type, *args, **kwargs):
         if model_type not in cls._builders:
             raise AttributeError(f"Unknown model type {model_type}")
-        return cls._builders[model_type](*args, *kwargs)
+        return cls._builders[model_type](*args, **kwargs)
 
 
 def cleaner(text):

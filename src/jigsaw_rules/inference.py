@@ -139,15 +139,11 @@ class InstructEngine(JigsawInference):
         )
         return dataframe
 
-    def run(self):
-        """
-        Data Parallelism
-        """
-        test_dataframe = self.get_dataset()
+    def inference_with_data(self, data, return_preds=False):
         # slice data
-        mid = len(test_dataframe) // 2
-        df0 = test_dataframe.iloc[:mid].reset_index(drop=True)
-        df1 = test_dataframe.iloc[mid:].reset_index(drop=True)
+        mid = len(data) // 2
+        df0 = data.iloc[:mid].reset_index(drop=True)
+        df1 = data.iloc[mid:].reset_index(drop=True)
         df0 = Dataset.from_pandas(build_dataframe_instruct(df0))
         df1 = Dataset.from_pandas(build_dataframe_instruct(df1))
         manager = mp.Manager()
@@ -173,23 +169,28 @@ class InstructEngine(JigsawInference):
 
         submission.to_csv(self.save_path, index=False)
         print(f"Saved to {self.save_path}")
-
-
-class ChatEngine(JigsawInference):
-    def get_dataset(self, dataframe):
-        df = build_dataframe_chat(dataframe)
-        return df
+        if return_preds:
+            return submission["rule_violation"].to_numpy()
 
     def run(self):
         """
-        Model Parallelism
+        Data Parallelism
         """
+        test_dataframe = self.get_dataset()
+        self.inference_with_data(test_dataframe)
+
+
+class ChatEngine(JigsawInference):
+    def get_dataset(self):
         if ChatConfig.test_file is None:
             test_dataframe = pd.read_csv(f"{self.data_path}/test.csv")
         else:
             test_dataframe = pd.read_csv(ChatConfig.test_file)
-        dataset = self.get_dataset(test_dataframe)
-        dataset = Dataset.from_pandas(dataset)
+        df = build_dataframe_chat(test_dataframe)
+        return df
+
+    def inference_with_data(self, data, return_preds=False):
+        dataset = Dataset.from_pandas(data)
 
         llm = vllm.LLM(
             self.model_path,
@@ -238,7 +239,7 @@ class ChatEngine(JigsawInference):
         predictions = pd.DataFrame(log_probs)[
             [ChatConfig.positive_answer, ChatConfig.negative_answer]
         ]
-        predictions["row_id"] = test_dataframe[
+        predictions["row_id"] = data[
             "row_id"
         ]  # dataset so no need to use .values
 
@@ -252,6 +253,16 @@ class ChatEngine(JigsawInference):
 
         submission.to_csv(self.save_path, index=False)
         print(f"Saved to {self.save_path}")
+        if return_preds:
+            return submission["rule_violation"].to_numpy()
+
+    def run(self):
+        """
+        Model Parallelism
+        """
+        dataset = self.get_dataset()
+
+        self.inference_with_data(dataset)
 
 
 class RobertaEngine(JigsawInference):
@@ -259,15 +270,13 @@ class RobertaEngine(JigsawInference):
         _, df_test = build_dataframe_roberta()
         return df_test
 
-    def run(self):
+    def inference_with_data(self, data, return_preds=False):
         from transformers import (  # hackyfix : avoid cuda init in the parent process
             RobertaForSequenceClassification,
             RobertaTokenizer,
             Trainer,
             TrainingArguments,
         )
-
-        df_test = self.get_dataset()
 
         tokenizer = RobertaTokenizer.from_pretrained(self.model_path)
 
@@ -289,7 +298,7 @@ class RobertaEngine(JigsawInference):
         )
 
         test_encodings = tokenizer(
-            df_test["input"].tolist(),
+            data["input"].tolist(),
             truncation=True,
             padding=True,
             max_length=512,
@@ -303,10 +312,16 @@ class RobertaEngine(JigsawInference):
         )[:, 1].numpy()
 
         submission_df = pd.DataFrame(
-            {"row_id": df_test["row_id"], "rule_violation": probs}
+            {"row_id": data["row_id"], "rule_violation": probs}
         )
 
         submission_df.to_csv(self.save_path, index=False)
+        if return_preds:
+            return submission_df["rule_violation"].to_numpy()
+
+    def run(self):
+        df_test = self.get_dataset()
+        self.inference_with_data(df_test)
 
 
 class DebertaEngine(JigsawInference):
@@ -318,7 +333,7 @@ class DebertaEngine(JigsawInference):
         dataframe = build_dataframe_deberta(dataframe)
         return dataframe
 
-    def run(self):
+    def inference_with_data(self, data, return_preds=False):
         os.environ["TOKENIZERS_PARALLELISM"] = "false"
         from transformers import (  # hackyfix : avoid cuda init in the parent process
             DataCollatorWithPadding,
@@ -328,7 +343,6 @@ class DebertaEngine(JigsawInference):
             TrainingArguments,
         )
 
-        test_dataframe = self.get_dataset()
         tokenizer = DebertaV2Tokenizer.from_pretrained(self.model_path)
         collator = DataCollatorWithPadding(tokenizer)
 
@@ -351,7 +365,7 @@ class DebertaEngine(JigsawInference):
         )
 
         test_encodings = tokenizer(
-            test_dataframe["input_text"].tolist(),
+            data["input_text"].tolist(),
             truncation=True,
             max_length=256,
         )
@@ -365,11 +379,17 @@ class DebertaEngine(JigsawInference):
 
         submission_df = pd.DataFrame(
             {
-                "row_id": test_dataframe["row_id"],
+                "row_id": data["row_id"],
                 "rule_violation": probs,
             }
         )
         submission_df.to_csv(self.save_path, index=False)
+        if return_preds:
+            return submission_df["rule_violation"].to_numpy()
+
+    def run(self):
+        test_dataframe = self.get_dataset()
+        self.inference_with_data(test_dataframe)
 
 
 if __name__ == "__main__":

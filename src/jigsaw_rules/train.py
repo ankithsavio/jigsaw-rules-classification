@@ -47,10 +47,8 @@ class JigsawTrainer:
 
 
 class Instruct(JigsawTrainer):
-    def run(self):
-        dataframe = get_train_dataframe(InstructConfig.model_type)
-
-        train_dataset = Dataset.from_pandas(dataframe)
+    def train_with_data(self, data):
+        train_dataset = Dataset.from_pandas(data)
 
         lora_config = LoraConfig(
             r=16,
@@ -101,13 +99,16 @@ class Instruct(JigsawTrainer):
         trainer.train()
         trainer.save_model(self.save_path)
 
+    def run(self):
+        dataframe = get_train_dataframe(InstructConfig.model_type)
+
+        self.train_with_data(dataframe)
+
 
 class RobertaBase(JigsawTrainer):
-    def run(self):
-        dataframe, _ = get_train_dataframe(RobertaConfig.model_type)
-
-        X = dataframe["input"].tolist()
-        y = dataframe["rule_violation"].tolist()
+    def train_with_data(self, data):
+        X = data["input"].tolist()
+        y = data["rule_violation"].tolist()
 
         X_train, X_val, y_train, y_val = train_test_split(
             X, y, test_size=0.1, random_state=42
@@ -154,18 +155,19 @@ class RobertaBase(JigsawTrainer):
         trainer.save_model(self.save_path)
         tokenizer.save_pretrained(self.save_path)
 
+    def run(self):
+        dataframe, _ = get_train_dataframe(RobertaConfig.model_type)
+        self.train_with_data(dataframe)
+
 
 class E5Base(JigsawTrainer):
-    def run(self):
-        dataframe = get_train_dataframe(E5Config.model_type)
-        dataframe = pd.DataFrame(
-            dataframe[
-                ["anchor", "positive_example", "negative_example"]
-            ].copy()
+    def train_with_data(self, data):
+        data = pd.DataFrame(
+            data[["anchor", "positive_example", "negative_example"]].copy()
         )
-        dataframe.columns = ["anchor", "positive", "negative"]
+        data.columns = ["anchor", "positive", "negative"]
 
-        dataset = Dataset.from_pandas(dataframe).train_test_split(
+        dataset = Dataset.from_pandas(data).train_test_split(
             test_size=0.01, seed=42
         )
 
@@ -197,23 +199,24 @@ class E5Base(JigsawTrainer):
         trainer.train()
         trainer.save_model(self.save_path)
 
+    def run(self):
+        dataframe = get_train_dataframe(E5Config.model_type)
+        self.train_with_data(dataframe)
+
 
 class DebertaBase(JigsawTrainer):
-    def run(self):
+    def train_with_data(self, data):
         os.environ["TOKENIZERS_PARALLELISM"] = "false"
-
-        dataframe = get_train_dataframe(DebertaConfig.model_type)
-
         tokenizer = DebertaV2Tokenizer.from_pretrained(self.model_path)
         collator = DataCollatorWithPadding(tokenizer)
 
         train_encodings = tokenizer(
-            dataframe["input_text"].tolist(),
+            data["input_text"].tolist(),
             truncation=True,
             max_length=512,
         )
 
-        train_labels = dataframe["rule_violation"].tolist()
+        train_labels = data["rule_violation"].tolist()
         train_dataset = RedditDataset(train_encodings, train_labels)
 
         model = DebertaV2ForSequenceClassification.from_pretrained(
@@ -240,6 +243,10 @@ class DebertaBase(JigsawTrainer):
         trainer.train()
         trainer.save_model(self.save_path)
         tokenizer.save_pretrained(self.save_path)
+
+    def run(self):
+        dataframe = get_train_dataframe(DebertaConfig.model_type)
+        self.train_with_data(dataframe)
 
 
 if __name__ == "__main__":
