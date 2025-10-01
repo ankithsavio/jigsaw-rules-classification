@@ -7,17 +7,17 @@ import random
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-import seaborn as sns
+import pandas as pd  # type: ignore
+import seaborn as sns  # type: ignore
 import torch
-from sklearn.metrics import (
+from sklearn.metrics import (  # type: ignore
     classification_report,
     confusion_matrix,
     precision_recall_fscore_support,
     roc_auc_score,
     roc_curve,
 )
-from sklearn.model_selection import StratifiedKFold
+from sklearn.model_selection import StratifiedKFold  # type: ignore
 
 from jigsaw_rules.configs import (
     DebertaConfig,

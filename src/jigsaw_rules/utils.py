@@ -190,6 +190,37 @@ def get_dataframe_to_train(data_path, include_train=True, subset=None):
     return dataframe
 
 
+def get_dataframe_to_train_semantic(data_path):
+    train_dataset = pd.read_csv(f"{data_path}/train.csv")
+    test_dataset = (
+        pd.read_csv(f"{data_path}/test.csv")
+        .sample(frac=0.6, random_state=42)
+        .reset_index(drop=True)
+    )
+
+    flatten = []
+    flatten.append(
+        train_dataset[["body", "rule", "subreddit", "rule_violation"]]
+    )
+
+    for violation_type in ["positive", "negative"]:
+        for i in range(1, 3):
+            sub_dataset = test_dataset[
+                [f"{violation_type}_example_{i}", "rule", "subreddit"]
+            ].copy()
+            sub_dataset = sub_dataset.rename(
+                columns={f"{violation_type}_example_{i}": "body"}
+            )
+            sub_dataset["rule_violation"] = (
+                1 if violation_type == "positive" else 0
+            )
+            flatten.append(sub_dataset)
+
+    dataframe = pd.concat(flatten, axis=0)
+    dataframe = dataframe.drop_duplicates(ignore_index=True)
+    return dataframe
+
+
 @DataframeFactory.register(InstructConfig.model_type)
 def build_dataframe_instruct(dataframe=None):
     def build_prompt(row):
@@ -291,11 +322,11 @@ def build_dataframe_emb(dataframe=None):
 
     if dataframe is None:  # training
         if not EmbeddingConfig.use_subset:
-            dataframe = get_dataframe_to_train(
+            dataframe = get_dataframe_to_train_semantic(
                 EmbeddingConfig.data_path, EmbeddingConfig.include_train
             )
         else:
-            dataframe = get_dataframe_to_train(
+            dataframe = get_dataframe_to_train_semantic(
                 EmbeddingConfig.data_path,
                 EmbeddingConfig.include_train,
                 EmbeddingConfig.subset,

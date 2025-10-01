@@ -2,11 +2,8 @@
 Designed to do inference with AutoRegressive and Bidirectional
 """
 
-import os
-
-os.environ["VLLM_USE_V1"] = "0"
-
 import multiprocessing as mp
+import os
 import random
 
 import pandas as pd  # type: ignore
@@ -16,6 +13,7 @@ from datasets import Dataset  # type: ignore
 from logits_processor_zoo.vllm import (  # type: ignore
     MultipleChoiceLogitsProcessor,
 )
+from scipy.special import softmax
 from vllm.lora.request import LoRARequest
 
 from jigsaw_rules.configs import (
@@ -229,32 +227,26 @@ class ChatEngine(JigsawInference):
             lora_request=LoRARequest("default", 1, self.lora_path),
         )
 
-        log_probs = [
+        logprobs = [
             {
                 lp.decoded_token: lp.logprob
                 for lp in out.outputs[0].logprobs[0].values()  # type: ignore
             }
             for out in outputs
         ]
-        predictions = pd.DataFrame(log_probs)[
-            [ChatConfig.positive_answer, ChatConfig.negative_answer]
-        ]
-        predictions["row_id"] = data[
-            "row_id"
-        ]  # dataset so no need to use .values
+        logit_matrix = pd.DataFrame(logprobs)[["Yes", "No"]]
+        data = pd.concat([data, logit_matrix], axis=1)
 
-        # build submission
-        submission = predictions[
-            [
-                "row_id",
-                ChatConfig.positive_answer,
-            ]
-        ].rename(columns={ChatConfig.positive_answer: "rule_violation"})
-
-        submission.to_csv(self.save_path, index=False)
+        data[["Yes", "No"]] = data[["Yes", "No"]].apply(
+            lambda x: softmax(x.values), axis=1, result_type="expand"
+        )
+        data["pred"] = data["Yes"]
+        data["rule_violation"] = data["pred"]
+        data[["row_id", "rule_violation"]].to_csv(self.save_path, index=False)
         print(f"Saved to {self.save_path}")
+
         if return_preds:
-            return submission["rule_violation"].to_numpy()
+            return data["rule_violation"].to_numpy()
 
     def run(self):
         """
@@ -399,6 +391,8 @@ if __name__ == "__main__":
     parser.add_argument("type", type=str)
 
     args = parser.parse_args()
+
+    os.environ["VLLM_USE_V1"] = "0"
 
     if args.type == InstructConfig.model_type:
         inference: JigsawInference = InstructEngine(
