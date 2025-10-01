@@ -190,18 +190,28 @@ def get_dataframe_to_train(data_path, include_train=True, subset=None):
     return dataframe
 
 
-def get_dataframe_to_train_semantic(data_path):
-    train_dataset = pd.read_csv(f"{data_path}/train.csv")
-    test_dataset = (
-        pd.read_csv(f"{data_path}/test.csv")
-        .sample(frac=0.6, random_state=42)
-        .reset_index(drop=True)
-    )
+def get_dataframe_to_train_semantic(
+    data_path, include_train=True, subset=None
+):
+    if subset is None:
+        test_dataset = (
+            pd.read_csv(f"{data_path}/test.csv")
+            .sample(frac=1, random_state=42)
+            .reset_index(drop=True)
+        )
+    else:
+        test_dataset = (
+            pd.read_csv(f"{data_path}/test.csv")
+            .sample(frac=0.6, random_state=42)
+            .reset_index(drop=True)
+        )
 
     flatten = []
-    flatten.append(
-        train_dataset[["body", "rule", "subreddit", "rule_violation"]]
-    )
+    if include_train:
+        train_dataset = pd.read_csv(f"{data_path}/train.csv")
+        flatten.append(
+            train_dataset[["body", "rule", "subreddit", "rule_violation"]]
+        )
 
     for violation_type in ["positive", "negative"]:
         for i in range(1, 3):
