@@ -324,7 +324,7 @@ class JigsawEval:
         precision, recall, f1, _ = precision_recall_fscore_support(
             true_labels, pred_labels, average="binary"
         )
-        auc_score = roc_auc_score(true_labels, probs)
+        auc_score = roc_auc_score(true_labels, probs[:, 1])
         cm = confusion_matrix(true_labels, pred_labels)
 
         return {
