@@ -388,6 +388,8 @@ class InstructEval(JigsawEval):
         )
         cv_results = []
         fold_predictions = []
+        data = data.reset_index(drop=True)
+        data["row_id"] = data.index
 
         for fold, (train_idx, val_idx) in enumerate(
             skf.split(data, data["rule"]), 1
@@ -597,6 +599,8 @@ class RobertaEval(JigsawEval):
         )
         cv_results = []
         fold_predictions = []
+        data = data.reset_index(drop=True)
+        data["row_id"] = data.index
 
         for fold, (train_idx, val_idx) in enumerate(
             skf.split(data, data["rule"]), 1
