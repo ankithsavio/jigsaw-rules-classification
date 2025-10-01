@@ -665,7 +665,9 @@ class RobertaEval(JigsawEval):
     def run(self):
         seed_everything(RobertaConfig.RANDOM_STATE)
 
-        dataframe = get_train_dataframe(RobertaConfig.model_type)
+        dataframe, _ = get_train_dataframe(
+            RobertaConfig.model_type
+        )  # use only train
 
         cv_results, fold_predictions = self.cross_validate_with_data(dataframe)
 
