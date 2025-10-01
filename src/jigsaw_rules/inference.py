@@ -180,22 +180,10 @@ class InstructEngine(JigsawInference):
         submission.to_csv(self.save_path, index=False)
         print(f"Saved to {self.save_path}")
         if return_preds:
-            predictions[
-                [
-                    InstructConfig.positive_answer,
-                    InstructConfig.negative_answer,
-                ]
-            ] = predictions[
-                [
-                    InstructConfig.positive_answer,
-                    InstructConfig.negative_answer,
-                ]
-            ].apply(lambda x: softmax(x.values), axis=1, result_type="expand")
-
             return predictions[
                 [
-                    InstructConfig.positive_answer,
                     InstructConfig.negative_answer,
+                    InstructConfig.positive_answer,
                 ]
             ].to_numpy()
 
@@ -285,7 +273,7 @@ class ChatEngine(JigsawInference):
 
         if return_preds:
             return data[
-                [ChatConfig.positive_answer, ChatConfig.negative_answer]
+                [ChatConfig.negative_answer, ChatConfig.positive_answer]
             ].to_numpy()
 
     def run(self):
