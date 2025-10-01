@@ -71,7 +71,7 @@ class JigsawEval:
         fig = plt.figure(figsize=(20, 16))
 
         # Define the grid layout
-        gs = plt.GridSpec(3, 3, figure=fig)
+        gs = plt.GridSpec(3, 3, figure=fig)  # type: ignore
 
         # Plot 1: CV Metrics across folds (top left, spans 2 columns)
         ax1 = fig.add_subplot(gs[0, :2])
@@ -112,7 +112,7 @@ class JigsawEval:
             fontweight="bold",
         )
         ax1.set_xticks(x + width * 1.5)
-        ax1.set_xticklabels(folds)
+        ax1.set_xticklabels(folds)  # type: ignore
         ax1.legend()
         ax1.grid(True, alpha=0.3)
         ax1.set_ylim(0, 1.1)
@@ -148,7 +148,7 @@ class JigsawEval:
         }
         box_plot = ax3.boxplot(
             [metric_data[metric] for metric in metrics],
-            labels=[m.upper() for m in metrics],
+            labels=[m.upper() for m in metrics],  # type: ignore
             patch_artist=True,
         )
 
@@ -189,7 +189,7 @@ class JigsawEval:
             colLabels=["Metric", "Mean", "Std", "Min", "Max"],
             cellLoc="center",
             loc="center",
-            bbox=[0, 0, 1, 1],
+            bbox=[0, 0, 1, 1],  # type: ignore
         )
 
         table.auto_set_font_size(False)
@@ -285,7 +285,7 @@ class JigsawEval:
         ax8.set_ylabel("Number of Samples")
         ax8.set_title("Sample Sizes per Fold", fontsize=14, fontweight="bold")
         ax8.set_xticks(x)
-        ax8.set_xticklabels(folds)
+        ax8.set_xticklabels(folds)  # type: ignore
         ax8.legend()
         ax8.grid(True, alpha=0.3)
 
@@ -305,7 +305,7 @@ class JigsawEval:
 
         print(f"✓ Comprehensive dashboard saved as {filename}")
 
-    def evaluate_model(probs, true_labels, threshold=0.5):
+    def evaluate_model(self, probs, true_labels, threshold=0.5):
         probs = np.array(probs).squeeze()
         true_labels = np.array(true_labels).astype(int)
 
@@ -393,14 +393,14 @@ class InstructEval(JigsawEval):
                 save_path=fold_save_path,
             )
 
+            trainer.train_with_data(train_df)
+
             engine = InstructEngine(
                 data_path=self.data_path,
                 model_path=self.model_path,
                 lora_path=fold_save_path,
                 save_path=InstructConfig.out_file,
             )
-
-            trainer.train_with_data(train_df)
 
             probs = engine.inference_with_data(val_df, return_preds=True)
             valid_labels = val_df["rule_violation"].tolist()
@@ -503,13 +503,13 @@ class RobertaEval(JigsawEval):
                 save_path=fold_save_path,
             )
 
+            trainer.train_with_data(train_df)
+
             engine = RobertaEngine(
                 data_path=self.data_path,
                 model_path=fold_save_path,
                 save_path=RobertaConfig.out_file,
             )
-
-            trainer.train_with_data(train_df)
 
             probs = engine.inference_with_data(val_df, return_preds=True)
             valid_labels = val_df["rule_violation"].tolist()
@@ -595,6 +595,8 @@ class DebertaEval(JigsawEval):
         )
         cv_results = []
         fold_predictions = []
+        data = data.reset_index(drop=True)
+        data["row_id"] = data.index
 
         for fold, (train_idx, val_idx) in enumerate(
             skf.split(data, data["rule"]), 1
@@ -611,14 +613,13 @@ class DebertaEval(JigsawEval):
                 model_path=self.model_path,
                 save_path=fold_save_path,
             )
+            trainer.train_with_data(train_df)
 
             engine = DebertaEngine(
                 data_path=self.data_path,
                 model_path=fold_save_path,
                 save_path=DebertaConfig.out_file,
             )
-
-            trainer.train_with_data(train_df)
 
             probs = engine.inference_with_data(val_df, return_preds=True)
             valid_labels = val_df["rule_violation"].tolist()
@@ -714,15 +715,15 @@ if __name__ == "__main__":
     elif args.type == RobertaConfig.model_type:
         evaluator = RobertaEval(
             data_path=RobertaConfig.data_path,
-            model_path=RobertaConfig.ckpt_path,
-            save_path=RobertaConfig.out_file,
+            model_path=RobertaConfig.model_path,
+            save_path=RobertaConfig.ckpt_path,
         )
         evaluator.run()
     elif args.type == DebertaConfig.model_type:
         evaluator = DebertaEval(
             data_path=DebertaConfig.data_path,
-            model_path=DebertaConfig.ckpt_path,
-            save_path=DebertaConfig.out_file,
+            model_path=DebertaConfig.model_path,
+            save_path=DebertaConfig.ckpt_path,
         )
         evaluator.run()
     else:
