@@ -2,9 +2,39 @@ The repository currently uses the code from the following [kaggle notebook](http
 
 Allows user to interact with dataset, training and inference scripts through the jigsaw_rules package
 
+## Codebase Outline
+
+    jigsaw-rules-classification/
+    |-- README.md
+    |-- config/
+    |   |-- instruct_config.yaml
+    |   `-- roberta_config.yaml
+    |-- dataset/
+    |-- kaggle_kernel/
+    |   |-- jigsaw_rules.ipynb
+    |   `-- kernel-metadata.json
+    |-- notebooks/
+    |-- pyproject.toml
+    |-- requirements.txt
+    |-- src/
+    |   `-- jigsaw_rules/
+    |       |-- __init__.py
+    |       |-- configs.py
+    |       |-- dataset.py
+    |       |-- evaluate.py     # evaluation script
+    |       |-- inference.py    # inference script
+    |       |-- semantic.py     # semantic infernce script
+    |       |-- train.py        # training script
+    |       `-- utils.py
+    `-- uv.lock
+
 ## Usage
 
 ### Installation
+
+    git clone https://github.com/ankithsavio/jigsaw-rules-classification.git
+
+    cd jigsaw-rules-classification
 
     uv pip install -e .
 
@@ -18,7 +48,7 @@ Allows user to interact with dataset, training and inference scripts through the
 
     !python -m jigsaw_rules.inference <type>
 
-    !python -m jigsaw_rules.semantic
+    !python -m jigsaw_rules.semantic <type>
 
 ### Ensemble generation
 
@@ -39,3 +69,30 @@ Allows user to interact with dataset, training and inference scripts through the
     blend = 0.5*rq + 0.3*rl + 0.2*rm
     q['rule_violation'] = blend
     q.to_csv('/kaggle/working/submission.csv', index=False)
+
+## Docs
+
+## Training
+
+Supported models
+
+- Qwen 2.5 0.5b : Uses SFTTrainer from trl - Instruct
+- Roberta Base : Uses Trainer from transformers - RobertaBase
+- Deberta Base : Uses Trainer from transformers - DebertaBase
+- E5 Base V3 : Uses SentenceTransformerTrainer from sentence_transformers - E5Base
+
+## Inference
+
+Supported models
+
+- Qwen 2.5 0.5b - InstructEngine
+- Qwen 2.5 14b - ChatEngine
+- Roberta Base - RobertaEngine
+- Deberta Base - DebertaEngine
+
+## Semantic Search
+
+Supported models
+
+- Qwen 3 0.6b - Qwen3EmbEngine
+- E5 Base V3 - E5BaseEngine

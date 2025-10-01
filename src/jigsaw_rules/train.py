@@ -48,6 +48,9 @@ class JigsawTrainer:
 
 class Instruct(JigsawTrainer):
     def train_with_data(self, data):
+        """
+        Run Trainer on data
+        """
         train_dataset = Dataset.from_pandas(data)
 
         lora_config = LoraConfig(
@@ -100,6 +103,9 @@ class Instruct(JigsawTrainer):
         trainer.save_model(self.save_path)
 
     def run(self):
+        """
+        Run Trainer on data determined by Config.data_path
+        """
         dataframe = get_train_dataframe(InstructConfig.model_type)
 
         self.train_with_data(dataframe)
@@ -107,6 +113,9 @@ class Instruct(JigsawTrainer):
 
 class RobertaBase(JigsawTrainer):
     def train_with_data(self, data):
+        """
+        Run Trainer on data
+        """
         X = data["input"].tolist()
         y = data["rule_violation"].tolist()
 
@@ -156,12 +165,18 @@ class RobertaBase(JigsawTrainer):
         tokenizer.save_pretrained(self.save_path)
 
     def run(self):
+        """
+        Run Trainer on data determined by Config.data_path
+        """
         dataframe, _ = get_train_dataframe(RobertaConfig.model_type)
         self.train_with_data(dataframe)
 
 
 class E5Base(JigsawTrainer):
     def train_with_data(self, data):
+        """
+        Run Trainer on data
+        """
         data = pd.DataFrame(
             data[["anchor", "positive_example", "negative_example"]].copy()
         )
@@ -200,12 +215,18 @@ class E5Base(JigsawTrainer):
         trainer.save_model(self.save_path)
 
     def run(self):
+        """
+        Run Trainer on data determined by Config.data_path
+        """
         dataframe = get_train_dataframe(E5Config.model_type)
         self.train_with_data(dataframe)
 
 
 class DebertaBase(JigsawTrainer):
     def train_with_data(self, data):
+        """
+        Run Trainer on data
+        """
         os.environ["TOKENIZERS_PARALLELISM"] = "false"
         tokenizer = DebertaV2Tokenizer.from_pretrained(self.model_path)
         collator = DataCollatorWithPadding(tokenizer)
@@ -245,6 +266,9 @@ class DebertaBase(JigsawTrainer):
         tokenizer.save_pretrained(self.save_path)
 
     def run(self):
+        """
+        Run Trainer on data determined by Config.data_path
+        """
         dataframe = get_train_dataframe(DebertaConfig.model_type)
         self.train_with_data(dataframe)
 

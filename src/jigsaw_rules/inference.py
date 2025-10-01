@@ -13,7 +13,7 @@ from datasets import Dataset  # type: ignore
 from logits_processor_zoo.vllm import (  # type: ignore
     MultipleChoiceLogitsProcessor,
 )
-from scipy.special import softmax
+from scipy.special import softmax  # type: ignore
 from vllm.lora.request import LoRARequest
 
 from jigsaw_rules.configs import (
@@ -48,6 +48,9 @@ class InstructEngine(JigsawInference):
     """
 
     def run_subset_device(self, test_dataset):
+        """
+        Run inference with single GPU
+        """
         llm = vllm.LLM(
             self.model_path,
             quantization="gptq",
@@ -99,6 +102,9 @@ class InstructEngine(JigsawInference):
         return predictions
 
     def worker(self, device_id, test_dataset, return_dict):
+        """
+        subprocess worker function
+        """
         os.environ["CUDA_VISIBLE_DEVICES"] = str(device_id)
         print(
             f"[Worker {device_id}] Running on GPU {device_id}, data size={len(test_dataset)}"
@@ -108,6 +114,9 @@ class InstructEngine(JigsawInference):
         return_dict[device_id] = preds
 
     def get_dataset(self):
+        """
+        get test data
+        """
         if InstructConfig.test_file is None:
             dataframe = pd.read_csv(f"{self.data_path}/test.csv")
         else:
@@ -138,6 +147,9 @@ class InstructEngine(JigsawInference):
         return dataframe
 
     def inference_with_data(self, data, return_preds=False):
+        """
+        Run inference on given data on 2x GPUs
+        """
         # slice data
         mid = len(data) // 2
         df0 = data.iloc[:mid].reset_index(drop=True)
@@ -172,7 +184,7 @@ class InstructEngine(JigsawInference):
 
     def run(self):
         """
-        Data Parallelism
+        Run inference on test data
         """
         test_dataframe = self.get_dataset()
         self.inference_with_data(test_dataframe)
@@ -180,6 +192,9 @@ class InstructEngine(JigsawInference):
 
 class ChatEngine(JigsawInference):
     def get_dataset(self):
+        """
+        get test data
+        """
         if ChatConfig.test_file is None:
             test_dataframe = pd.read_csv(f"{self.data_path}/test.csv")
         else:
@@ -188,6 +203,10 @@ class ChatEngine(JigsawInference):
         return df
 
     def inference_with_data(self, data, return_preds=False):
+        """
+        Run inference on given data using Model Parallelism
+        """
+
         dataset = Dataset.from_pandas(data)
 
         llm = vllm.LLM(
@@ -250,7 +269,7 @@ class ChatEngine(JigsawInference):
 
     def run(self):
         """
-        Model Parallelism
+        Run inference on test data
         """
         dataset = self.get_dataset()
 
@@ -259,10 +278,16 @@ class ChatEngine(JigsawInference):
 
 class RobertaEngine(JigsawInference):
     def get_dataset(self):
+        """
+        get test data
+        """
         _, df_test = build_dataframe_roberta()
         return df_test
 
     def inference_with_data(self, data, return_preds=False):
+        """
+        Run inference on given data using Data Parallelism
+        """
         from transformers import (  # hackyfix : avoid cuda init in the parent process
             RobertaForSequenceClassification,
             RobertaTokenizer,
@@ -312,12 +337,18 @@ class RobertaEngine(JigsawInference):
             return submission_df["rule_violation"].to_numpy()
 
     def run(self):
+        """
+        Run inference on test data
+        """
         df_test = self.get_dataset()
         self.inference_with_data(df_test)
 
 
 class DebertaEngine(JigsawInference):
     def get_dataset(self):
+        """
+        get test data
+        """
         if DebertaConfig.test_file is None:
             dataframe = pd.read_csv(f"{self.data_path}/test.csv")
         else:
@@ -326,6 +357,9 @@ class DebertaEngine(JigsawInference):
         return dataframe
 
     def inference_with_data(self, data, return_preds=False):
+        """
+        Run inference on given data using Data Parallelism
+        """
         os.environ["TOKENIZERS_PARALLELISM"] = "false"
         from transformers import (  # hackyfix : avoid cuda init in the parent process
             DataCollatorWithPadding,
@@ -380,6 +414,9 @@ class DebertaEngine(JigsawInference):
             return submission_df["rule_violation"].to_numpy()
 
     def run(self):
+        """
+        Run inference on test data
+        """
         test_dataframe = self.get_dataset()
         self.inference_with_data(test_dataframe)
 

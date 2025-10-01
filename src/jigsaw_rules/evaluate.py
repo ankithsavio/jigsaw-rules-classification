@@ -369,6 +369,9 @@ class JigsawEval:
 
 class InstructEval(JigsawEval):
     def cross_validate_with_data(self, data):
+        data.drop_duplicates(
+            subset=["body", "rule"], keep="first", inplace=True
+        )
         skf = StratifiedKFold(
             n_splits=InstructConfig.N_SPLITS,
             shuffle=True,
@@ -479,6 +482,9 @@ class InstructEval(JigsawEval):
 
 class RobertaEval(JigsawEval):
     def cross_validate_with_data(self, data):
+        data.drop_duplicates(
+            subset=["body", "rule"], keep="first", inplace=True
+        )
         skf = StratifiedKFold(
             n_splits=RobertaConfig.N_SPLITS,
             shuffle=True,
@@ -588,6 +594,9 @@ class RobertaEval(JigsawEval):
 
 class DebertaEval(JigsawEval):
     def cross_validate_with_data(self, data):
+        data.drop_duplicates(
+            subset=["body", "rule"], keep="first", inplace=True
+        )
         skf = StratifiedKFold(
             n_splits=DebertaConfig.N_SPLITS,
             shuffle=True,
