@@ -180,7 +180,24 @@ class InstructEngine(JigsawInference):
         submission.to_csv(self.save_path, index=False)
         print(f"Saved to {self.save_path}")
         if return_preds:
-            return submission["rule_violation"].to_numpy()
+            predictions[
+                [
+                    InstructConfig.positive_answer,
+                    InstructConfig.negative_answer,
+                ]
+            ] = predictions[
+                [
+                    InstructConfig.positive_answer,
+                    InstructConfig.negative_answer,
+                ]
+            ].apply(lambda x: softmax(x.values), axis=1, result_type="expand")
+
+            return predictions[
+                [
+                    InstructConfig.positive_answer,
+                    InstructConfig.negative_answer,
+                ]
+            ].to_numpy()
 
     def run(self):
         """
@@ -253,19 +270,23 @@ class ChatEngine(JigsawInference):
             }
             for out in outputs
         ]
-        logit_matrix = pd.DataFrame(logprobs)[["Yes", "No"]]
+        logit_matrix = pd.DataFrame(logprobs)[
+            [ChatConfig.positive_answer, ChatConfig.negative_answer]
+        ]
         data = pd.concat([data, logit_matrix], axis=1)
 
-        data[["Yes", "No"]] = data[["Yes", "No"]].apply(
-            lambda x: softmax(x.values), axis=1, result_type="expand"
-        )
-        data["pred"] = data["Yes"]
+        data[[ChatConfig.positive_answer, ChatConfig.negative_answer]] = data[
+            [ChatConfig.positive_answer, ChatConfig.negative_answer]
+        ].apply(lambda x: softmax(x.values), axis=1, result_type="expand")
+        data["pred"] = data[ChatConfig.positive_answer]
         data["rule_violation"] = data["pred"]
         data[["row_id", "rule_violation"]].to_csv(self.save_path, index=False)
         print(f"Saved to {self.save_path}")
 
         if return_preds:
-            return data["rule_violation"].to_numpy()
+            return data[
+                [ChatConfig.positive_answer, ChatConfig.negative_answer]
+            ].to_numpy()
 
     def run(self):
         """
@@ -324,17 +345,20 @@ class RobertaEngine(JigsawInference):
         test_dataset = RedditDataset(test_encodings)
 
         test_outputs = trainer.predict(test_dataset)
-        probs = torch.nn.functional.softmax(
+        full_probs = torch.nn.functional.softmax(
             torch.tensor(test_outputs.predictions), dim=1
-        )[:, 1].numpy()
+        )
 
         submission_df = pd.DataFrame(
-            {"row_id": data["row_id"], "rule_violation": probs}
+            {
+                "row_id": data["row_id"],
+                "rule_violation": full_probs[:, 1].numpy(),
+            }
         )
 
         submission_df.to_csv(self.save_path, index=False)
         if return_preds:
-            return submission_df["rule_violation"].to_numpy()
+            return full_probs.numpy()
 
     def run(self):
         """
@@ -399,19 +423,19 @@ class DebertaEngine(JigsawInference):
         test_dataset = RedditDataset(test_encodings)
 
         predictions = trainer.predict(test_dataset)
-        probs = torch.nn.functional.softmax(
+        full_probs = torch.nn.functional.softmax(
             torch.tensor(predictions.predictions), dim=1
-        )[:, 1].numpy()
+        )
 
         submission_df = pd.DataFrame(
             {
                 "row_id": data["row_id"],
-                "rule_violation": probs,
+                "rule_violation": full_probs[:, 1].numpy(),
             }
         )
         submission_df.to_csv(self.save_path, index=False)
         if return_preds:
-            return submission_df["rule_violation"].to_numpy()
+            return full_probs.numpy()
 
     def run(self):
         """

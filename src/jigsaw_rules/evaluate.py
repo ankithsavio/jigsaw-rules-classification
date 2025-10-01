@@ -319,7 +319,7 @@ class JigsawEval:
         true_labels = np.array(true_labels).astype(int)
 
         # derive predicted labels by thresholding
-        pred_labels = (probs >= threshold).astype(int)
+        pred_labels = np.argmax(probs, axis=1)
 
         precision, recall, f1, _ = precision_recall_fscore_support(
             true_labels, pred_labels, average="binary"
@@ -329,7 +329,7 @@ class JigsawEval:
 
         return {
             "predictions": pred_labels,
-            "probabilities": probs,
+            "probabilities": probs[:, 1],
             "true_labels": true_labels,
             "confusion_matrix": cm,
             "precision": precision,
