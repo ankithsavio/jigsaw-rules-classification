@@ -2,6 +2,7 @@
 Script for cross validation / evaluation
 """
 
+import multiprocessing as mp
 import os
 import random
 
@@ -19,7 +20,6 @@ from sklearn.metrics import (  # type: ignore
 )
 from sklearn.model_selection import (  # type: ignore
     StratifiedKFold,
-    train_test_split,
 )
 
 from jigsaw_rules.configs import (
@@ -407,7 +407,12 @@ class InstructEval(JigsawEval):
                 save_path=fold_save_path,
             )
 
-            trainer.train_with_data(train_df)
+            # hackyfix start training on subprocess to avoid cuda re-init issues during inference
+            # TODO : need better fix
+            p0 = mp.Process(target=trainer.train_with_data, args=(train_df,))
+            p0.start()
+            p0.join()
+            # trainer.train_with_data(train_df)
 
             engine = InstructEngine(
                 data_path=self.data_path,

@@ -6,25 +6,7 @@ import os
 
 import pandas as pd  # type: ignore
 from datasets import Dataset  # type: ignore
-from peft import LoraConfig
-from sentence_transformers import (
-    SentenceTransformer,
-    SentenceTransformerTrainer,
-    SentenceTransformerTrainingArguments,
-)
-from sentence_transformers.losses import MultipleNegativesRankingLoss
 from sklearn.model_selection import train_test_split  # type: ignore
-from transformers import (
-    DataCollatorWithPadding,
-    DebertaV2ForSequenceClassification,
-    DebertaV2Tokenizer,
-    RobertaForSequenceClassification,
-    RobertaTokenizer,
-    Trainer,
-    TrainingArguments,
-)
-from transformers.utils.import_utils import is_torch_bf16_gpu_available
-from trl import SFTConfig, SFTTrainer  # type: ignore
 
 from jigsaw_rules.configs import (
     DebertaConfig,
@@ -51,6 +33,10 @@ class Instruct(JigsawTrainer):
         """
         Run Trainer on data
         """
+        from peft import LoraConfig
+        from transformers.utils.import_utils import is_torch_bf16_gpu_available
+        from trl import SFTConfig, SFTTrainer  # type: ignore
+
         train_dataset = Dataset.from_pandas(data)
 
         lora_config = LoraConfig(
@@ -116,6 +102,13 @@ class RobertaBase(JigsawTrainer):
         """
         Run Trainer on data
         """
+        from transformers import (
+            RobertaForSequenceClassification,
+            RobertaTokenizer,
+            Trainer,
+            TrainingArguments,
+        )
+
         X = data["input"].tolist()
         y = data["rule_violation"].tolist()
 
@@ -177,6 +170,13 @@ class E5Base(JigsawTrainer):
         """
         Run Trainer on data
         """
+        from sentence_transformers import (
+            SentenceTransformer,
+            SentenceTransformerTrainer,
+            SentenceTransformerTrainingArguments,
+        )
+        from sentence_transformers.losses import MultipleNegativesRankingLoss
+
         data = pd.DataFrame(
             data[["anchor", "positive_example", "negative_example"]].copy()
         )
@@ -227,6 +227,14 @@ class DebertaBase(JigsawTrainer):
         """
         Run Trainer on data
         """
+        from transformers import (
+            DataCollatorWithPadding,
+            DebertaV2ForSequenceClassification,
+            DebertaV2Tokenizer,
+            Trainer,
+            TrainingArguments,
+        )
+
         os.environ["TOKENIZERS_PARALLELISM"] = "false"
         tokenizer = DebertaV2Tokenizer.from_pretrained(self.model_path)
         collator = DataCollatorWithPadding(tokenizer)
