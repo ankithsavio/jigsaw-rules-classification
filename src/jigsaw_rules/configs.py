@@ -48,7 +48,7 @@ class EmbeddingConfig(BaseConfig):
     model_type = "embed"
     data_path = "/kaggle/input/jigsaw-agile-community-rules/"
     model_path = "/kaggle/input/qwen-3-embedding/transformers/0.6b/1"
-    lora_path = "/kaggle/input/qwen3-8b-embedding"  # only named as 8b but actually uses 0.6b
+    lora_path = "/kaggle/input/qwen3-8b-embedding/"  # only named as 8b but actually uses 0.6b
     positive_answer = 1
     negative_answer = -1
     base_query = "Instruct: Given a web search query, retrieve relevant passages that answer the query\nQuery:"

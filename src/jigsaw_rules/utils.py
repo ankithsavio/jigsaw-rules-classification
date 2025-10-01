@@ -276,7 +276,8 @@ def build_dataframe_instruct(dataframe=None):
     return dataframe
 
 
-def build_dataframe_chat(dataframe):
+@DataframeFactory.register(ChatConfig.model_type)
+def build_dataframe_chat(dataframe=None):
     def build_prompt(row, tokenizer):
         text = (
             f"\nr/{row['subreddit']}\n"
@@ -308,6 +309,15 @@ def build_dataframe_chat(dataframe):
         return prompt
 
     tokenizer = AutoTokenizer.from_pretrained(ChatConfig.model_path)
+    if dataframe is None:  # training with only train.csv
+        if not ChatConfig.use_subset:
+            dataframe = pd.read_csv(f"{ChatConfig.data_path}/train.csv")
+        else:
+            dataframe = (
+                pd.read_csv(f"{ChatConfig.data_path}/train.csv")
+                .sample(frac=ChatConfig.subset, random_state=42)
+                .reset_index(drop=True)
+            )
     dataframe["prompt"] = dataframe.apply(
         lambda row: build_prompt(row, tokenizer), axis=1
     )

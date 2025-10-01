@@ -17,14 +17,19 @@ from sklearn.metrics import (  # type: ignore
     roc_auc_score,
     roc_curve,
 )
-from sklearn.model_selection import StratifiedKFold  # type: ignore
+from sklearn.model_selection import (  # type: ignore
+    StratifiedKFold,
+    train_test_split,
+)
 
 from jigsaw_rules.configs import (
+    ChatConfig,
     DebertaConfig,
     InstructConfig,
     RobertaConfig,
 )
 from jigsaw_rules.inference import (
+    ChatEngine,
     DebertaEngine,
     InstructEngine,
     RobertaEngine,
@@ -65,7 +70,11 @@ class JigsawEval:
         raise NotImplementedError
 
     def create_dashboard(
-        self, cv_results, fold_predictions, filename="cv_dashboard.png"
+        self,
+        cv_results,
+        fold_predictions,
+        model_name,
+        filename="cv_dashboard.png",
     ):
         # Create figure with subplots
         fig = plt.figure(figsize=(20, 16))
@@ -291,7 +300,7 @@ class JigsawEval:
 
         # Add overall title
         plt.suptitle(
-            "DeBERTa Cross-Validation Analysis Dashboard",
+            f"{model_name} Cross-Validation Analysis Dashboard",
             fontsize=18,
             fontweight="bold",
             y=0.98,
@@ -303,7 +312,7 @@ class JigsawEval:
         plt.savefig(filename, dpi=300, bbox_inches="tight", facecolor="white")
         plt.close()
 
-        print(f"✓ Comprehensive dashboard saved as {filename}")
+        print(f"Comprehensive dashboard saved as {filename}")
 
     def evaluate_model(self, probs, true_labels, threshold=0.5):
         probs = np.array(probs).squeeze()
@@ -456,7 +465,10 @@ class InstructEval(JigsawEval):
         self.print_cv_summary(cv_results)
 
         self.create_dashboard(
-            cv_results, fold_predictions, "cv_dashboard_instruct.png"
+            cv_results,
+            fold_predictions,
+            "Qwen 2.5 0.5b",
+            "cv_dashboard_instruct.png",
         )
 
         cv_df = pd.DataFrame(cv_results)
@@ -478,6 +490,99 @@ class InstructEval(JigsawEval):
 
         predictions_df = pd.concat(all_predictions, ignore_index=True)
         predictions_df.to_csv("cv_predictions_instruct.csv", index=False)
+
+
+class ChatEval(JigsawEval):
+    def evaluate_with_data(self, data):
+        data.drop_duplicates(
+            subset=["body", "rule"], keep="first", inplace=True
+        )
+
+        results = []
+        predictions = []
+        data = data.reset_index(drop=True)
+        data["row_id"] = data.index
+
+        engine = ChatEngine(
+            data_path=self.data_path,
+            model_path=self.model_path,
+            lora_path=self.lora_path,
+            save_path=self.save_path,
+        )
+
+        probs = engine.inference_with_data(data, return_preds=True)
+        valid_labels = data["rule_violation"].tolist()
+        # Evaluate
+        eval_results = self.evaluate_model(
+            probs,
+            valid_labels,
+        )
+
+        # Store results
+        results.append(
+            {
+                "fold": 1,
+                "precision": eval_results["precision"],
+                "recall": eval_results["recall"],
+                "f1": eval_results["f1"],
+                "auc": eval_results["auc"],
+                "train_size": 0,
+                "val_size": len(data),
+            }
+        )
+
+        # Store predictions
+        predictions.append(
+            {
+                "fold": 1,
+                "true_labels": eval_results["true_labels"],
+                "predictions": eval_results["predictions"],
+                "probabilities": eval_results["probabilities"],
+                "rules": data["rule"].tolist(),
+            }
+        )
+
+        print("Fold 1 Results:")
+        print(f"  Precision: {eval_results['precision']:.4f}")
+        print(f"  Recall:    {eval_results['recall']:.4f}")
+        print(f"  F1-Score:  {eval_results['f1']:.4f}")
+        print(f"  AUC-ROC:   {eval_results['auc']:.4f}")
+
+        return results, predictions
+
+    def run(self):
+        seed_everything(ChatConfig.RANDOM_STATE)
+
+        dataframe = get_train_dataframe(ChatConfig.model_type)
+
+        results, predictions = self.evaluate_with_data(dataframe)
+
+        # Print summary
+        self.print_cv_summary(results)
+
+        self.create_dashboard(
+            results, predictions, "Qwen 2.5 14b", "dashboard_chat.png"
+        )
+
+        cv_df = pd.DataFrame(results)
+        cv_df.to_csv("results_chat.csv", index=False)
+
+        # Save all predictions
+        all_predictions = []
+        for pred in predictions:
+            df = pd.DataFrame(
+                {
+                    "fold": pred["fold"],
+                    "true_label": pred["true_labels"],
+                    "predicted_label": pred["predictions"],
+                    "probability": pred["probabilities"],
+                    "rule": pred["rules"],
+                }
+            )
+            all_predictions.append(df)
+
+        predictions_df = pd.concat(all_predictions, ignore_index=True)
+        predictions_df.to_csv("predictions_chat.csv", index=False)
 
 
 class RobertaEval(JigsawEval):
@@ -568,7 +673,10 @@ class RobertaEval(JigsawEval):
         self.print_cv_summary(cv_results)
 
         self.create_dashboard(
-            cv_results, fold_predictions, "cv_dashboard_roberta.png"
+            cv_results,
+            fold_predictions,
+            "Roberta Base",
+            "cv_dashboard_roberta.png",
         )
 
         cv_df = pd.DataFrame(cv_results)
@@ -681,7 +789,10 @@ class DebertaEval(JigsawEval):
         self.print_cv_summary(cv_results)
 
         self.create_dashboard(
-            cv_results, fold_predictions, "cv_dashboard_deberta.png"
+            cv_results,
+            fold_predictions,
+            "DeBERTa v3 Base",
+            "cv_dashboard_deberta.png",
         )
 
         cv_df = pd.DataFrame(cv_results)
@@ -719,6 +830,14 @@ if __name__ == "__main__":
             model_path=InstructConfig.model_path,
             lora_path=InstructConfig.lora_path,
             save_path=InstructConfig.out_file,
+        )
+        evaluator.run()
+    elif args.type == ChatConfig.model_type:
+        evaluator = ChatEval(
+            data_path=ChatConfig.data_path,
+            model_path=ChatConfig.model_path,
+            lora_path=ChatConfig.lora_path,
+            save_path=ChatConfig.out_file,
         )
         evaluator.run()
     elif args.type == RobertaConfig.model_type:
