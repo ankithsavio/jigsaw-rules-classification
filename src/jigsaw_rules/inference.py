@@ -180,12 +180,7 @@ class InstructEngine(JigsawInference):
         submission.to_csv(self.save_path, index=False)
         print(f"Saved to {self.save_path}")
         if return_preds:
-            return predictions[
-                [
-                    InstructConfig.negative_answer,
-                    InstructConfig.positive_answer,
-                ]
-            ].to_numpy()
+            return submission[["rule_violation"]]
 
     def run(self):
         """
@@ -272,9 +267,7 @@ class ChatEngine(JigsawInference):
         print(f"Saved to {self.save_path}")
 
         if return_preds:
-            return data[
-                [ChatConfig.negative_answer, ChatConfig.positive_answer]
-            ].to_numpy()
+            return data[["rule_violation"]]
 
     def run(self):
         """
@@ -346,7 +339,7 @@ class RobertaEngine(JigsawInference):
 
         submission_df.to_csv(self.save_path, index=False)
         if return_preds:
-            return full_probs.numpy()
+            return submission_df[["rule_violation"]]
 
     def run(self):
         """
@@ -425,7 +418,7 @@ class DebertaEngine(JigsawInference):
         )
         submission_df.to_csv(self.save_path, index=False)
         if return_preds:
-            return full_probs.numpy()
+            return submission_df[["rule_violation"]]
 
     def run(self):
         """

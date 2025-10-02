@@ -114,7 +114,7 @@ class Qwen3EmbEngine(JigsawInference):
         )
 
         if return_preds:
-            return submission["rule_violation"].to_numpy()
+            return submission[["rule_violation"]]
 
         return submission
 
@@ -210,7 +210,7 @@ class E5BaseEngine(JigsawInference):
         )
 
         if return_preds:
-            return submission["rule_violation"].to_numpy()
+            return submission[["rule_violation"]]
 
         return submission
 

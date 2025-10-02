@@ -324,7 +324,7 @@ def build_dataframe_chat(dataframe=None, is_train=False):
         return prompt
 
     tokenizer = AutoTokenizer.from_pretrained(ChatConfig.model_path)
-    if is_train and (dataframe is None):  # training with only train.csv
+    if is_train or (dataframe is None):  # training with only train.csv
         if not ChatConfig.use_subset:
             dataframe = pd.read_csv(f"{ChatConfig.data_path}/train.csv")
         else:
@@ -333,6 +333,7 @@ def build_dataframe_chat(dataframe=None, is_train=False):
                 .sample(frac=ChatConfig.subset, random_state=42)
                 .reset_index(drop=True)
             )
+            
     dataframe["prompt"] = dataframe.apply(
         lambda row: build_prompt(row, tokenizer), axis=1
     )

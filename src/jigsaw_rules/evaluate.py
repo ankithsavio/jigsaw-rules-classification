@@ -317,22 +317,18 @@ class JigsawEval:
 
         print(f"Comprehensive dashboard saved as {filename}")
 
-    def evaluate_model(self, probs, true_labels, threshold=0.5):
-        probs = np.array(probs).squeeze()
+    def evaluate_model(self, ranks, true_labels, threshold=0.5):
+        ranks = np.array(ranks).squeeze()
         true_labels = np.array(true_labels).astype(int)
 
-        # derive predicted labels
-        if len(probs.shape) > 1:
-            pred_labels = np.argmax(probs, axis=1)
-            test_probs = probs[:, 1]
-        else:
-            pred_labels = (probs >= threshold).astype(int)
-            test_probs = probs
+        # derive predicted labels by assuming equal distribution between labels
+        pred_labels = (ranks >= threshold).astype(int)
+        test_probs = ranks
 
         precision, recall, f1, _ = precision_recall_fscore_support(
             true_labels, pred_labels, average="binary"
         )
-        auc_score = roc_auc_score(true_labels, test_probs) # [1, 0 , 1, 1]
+        auc_score = roc_auc_score(true_labels, test_probs)  # [1, 0 , 1, 1]
         cm = confusion_matrix(true_labels, pred_labels)
 
         return {
@@ -430,10 +426,13 @@ class InstructEval(JigsawEval):
             )
 
             probs = engine.inference_with_data(val_df, return_preds=True)
+            ranks = probs["rule_violation"].rank(method="average") / (
+                len(probs) + 1
+            )
             valid_labels = val_df["rule_violation"].tolist()
             # Evaluate
             fold_results = self.evaluate_model(
-                probs,
+                ranks,
                 valid_labels,
             )
 
@@ -526,10 +525,13 @@ class ChatEval(JigsawEval):
         )
 
         probs = engine.inference_with_data(data, return_preds=True)
+        ranks = probs["rule_violation"].rank(method="average") / (
+            len(probs) + 1
+        )
         valid_labels = data["rule_violation"].tolist()
         # Evaluate
         eval_results = self.evaluate_model(
-            probs,
+            ranks,
             valid_labels,
         )
 
@@ -619,9 +621,15 @@ class Qwen3EmbEval(JigsawEval):
         )
 
         probs = engine.get_scores(data, return_preds=True)
+        ranks = probs["rule_violation"].rank(method="average") / (
+            len(probs) + 1
+        )
         valid_labels = data["rule_violation"].tolist()
         # Evaluate
-        eval_results = self.evaluate_model(probs, valid_labels, 0)
+        eval_results = self.evaluate_model(
+            ranks,
+            valid_labels,
+        )
 
         # Store results
         results.append(
@@ -819,10 +827,13 @@ class RobertaEval(JigsawEval):
             )
 
             probs = engine.inference_with_data(val_df, return_preds=True)
+            ranks = probs["rule_violation"].rank(method="average") / (
+                len(probs) + 1
+            )
             valid_labels = val_df["rule_violation"].tolist()
             # Evaluate
             fold_results = self.evaluate_model(
-                probs,
+                ranks,
                 valid_labels,
             )
 
@@ -937,10 +948,13 @@ class DebertaEval(JigsawEval):
             )
 
             probs = engine.inference_with_data(val_df, return_preds=True)
+            ranks = probs["rule_violation"].rank(method="average") / (
+                len(probs) + 1
+            )
             valid_labels = val_df["rule_violation"].tolist()
             # Evaluate
             fold_results = self.evaluate_model(
-                probs,
+                ranks,
                 valid_labels,
             )
 
