@@ -3,11 +3,7 @@ Designed for inference with semantic search
 """
 
 import pandas as pd  # type: ignore
-from peft import PeftConfig, PeftModel
-from sentence_transformers import SentenceTransformer
-from sentence_transformers.util import dot_score, semantic_search
 from tqdm.auto import tqdm  # type: ignore
-from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from jigsaw_rules.configs import E5Config, EmbeddingConfig
 from jigsaw_rules.inference import JigsawInference
@@ -28,6 +24,11 @@ class Qwen3EmbEngine(JigsawInference):
         return dataframe
 
     def get_scores(self, test_dataframe, return_preds=False):
+        from peft import PeftConfig, PeftModel
+        from sentence_transformers import SentenceTransformer
+        from sentence_transformers.util import dot_score, semantic_search
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+
         corpus_dataframe = get_train_dataframe(EmbeddingConfig.model_type)
 
         # Load base model
@@ -136,6 +137,9 @@ class E5BaseEngine(JigsawInference):
         return dataframe
 
     def get_scores(self, test_dataframe, return_preds=False):
+        from sentence_transformers import SentenceTransformer
+        from sentence_transformers.util import dot_score, semantic_search
+
         corpus_dataframe = get_train_dataframe(E5Config.model_type)
 
         embedding_model = SentenceTransformer(
