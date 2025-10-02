@@ -1052,6 +1052,19 @@ if __name__ == "__main__":
             save_path=ChatConfig.out_file,
         )
         evaluator.run()
+    elif args.type == EmbeddingConfig.model_type:
+        evaluator = Qwen3EmbEval(
+            data_path=EmbeddingConfig.data_path,
+            model_path=EmbeddingConfig.model_path,
+            lora_path=EmbeddingConfig.lora_path,
+            save_path=EmbeddingConfig.out_file,
+        )
+    elif args.type == E5Config.model_type:
+        evaluator = E5BaseEval(
+            data_path=E5Config.data_path,
+            model_path=E5Config.model_path,
+            save_path=E5Config.out_file,
+        )
     elif args.type == RobertaConfig.model_type:
         evaluator = RobertaEval(
             data_path=RobertaConfig.data_path,
