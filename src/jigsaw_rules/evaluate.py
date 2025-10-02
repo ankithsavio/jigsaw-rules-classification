@@ -25,6 +25,8 @@ from sklearn.model_selection import (  # type: ignore
 from jigsaw_rules.configs import (
     ChatConfig,
     DebertaConfig,
+    E5Config,
+    EmbeddingConfig,
     InstructConfig,
     RobertaConfig,
 )
@@ -34,6 +36,7 @@ from jigsaw_rules.inference import (
     InstructEngine,
     RobertaEngine,
 )
+from jigsaw_rules.semantic import E5BaseEngine, Qwen3EmbEngine
 from jigsaw_rules.train import (
     DebertaBase,
     Instruct,
@@ -318,18 +321,23 @@ class JigsawEval:
         probs = np.array(probs).squeeze()
         true_labels = np.array(true_labels).astype(int)
 
-        # derive predicted labels by thresholding
-        pred_labels = np.argmax(probs, axis=1)
+        # derive predicted labels
+        if len(probs.shape) > 1:
+            pred_labels = np.argmax(probs, axis=1)
+            test_probs = probs[:, 1]
+        else:
+            pred_labels = (probs >= threshold).astype(int)
+            test_probs = probs
 
         precision, recall, f1, _ = precision_recall_fscore_support(
             true_labels, pred_labels, average="binary"
         )
-        auc_score = roc_auc_score(true_labels, probs[:, 1])
+        auc_score = roc_auc_score(true_labels, test_probs) # [1, 0 , 1, 1]
         cm = confusion_matrix(true_labels, pred_labels)
 
         return {
             "predictions": pred_labels,
-            "probabilities": probs[:, 1],
+            "probabilities": test_probs,
             "true_labels": true_labels,
             "confusion_matrix": cm,
             "precision": precision,
@@ -590,6 +598,185 @@ class ChatEval(JigsawEval):
 
         predictions_df = pd.concat(all_predictions, ignore_index=True)
         predictions_df.to_csv("predictions_chat.csv", index=False)
+
+
+class Qwen3EmbEval(JigsawEval):
+    def evaluate_with_data(self, data):
+        data.drop_duplicates(
+            subset=["body", "rule"], keep="first", inplace=True
+        )
+
+        results = []
+        predictions = []
+        data = data.reset_index(drop=True)
+        data["row_id"] = data.index
+
+        engine = Qwen3EmbEngine(
+            data_path=self.data_path,
+            model_path=self.model_path,
+            lora_path=self.lora_path,
+            save_path=self.save_path,
+        )
+
+        probs = engine.get_scores(data, return_preds=True)
+        valid_labels = data["rule_violation"].tolist()
+        # Evaluate
+        eval_results = self.evaluate_model(probs, valid_labels, 0)
+
+        # Store results
+        results.append(
+            {
+                "fold": 1,
+                "precision": eval_results["precision"],
+                "recall": eval_results["recall"],
+                "f1": eval_results["f1"],
+                "auc": eval_results["auc"],
+                "train_size": 0,
+                "val_size": len(data),
+            }
+        )
+
+        # Store predictions
+        predictions.append(
+            {
+                "fold": 1,
+                "true_labels": eval_results["true_labels"],
+                "predictions": eval_results["predictions"],
+                "probabilities": eval_results["probabilities"],
+                "rules": data["rule"].tolist(),
+            }
+        )
+
+        print("Fold 1 Results:")
+        print(f"  Precision: {eval_results['precision']:.4f}")
+        print(f"  Recall:    {eval_results['recall']:.4f}")
+        print(f"  F1-Score:  {eval_results['f1']:.4f}")
+        print(f"  AUC-ROC:   {eval_results['auc']:.4f}")
+
+        return results, predictions
+
+    def run(self):
+        seed_everything(EmbeddingConfig.RANDOM_STATE)
+
+        dataframe = get_train_dataframe(EmbeddingConfig.model_type)
+
+        results, predictions = self.evaluate_with_data(dataframe)
+
+        # Print summary
+        self.print_cv_summary(results)
+
+        self.create_dashboard(
+            results, predictions, "Qwen 3 0.6b Emb", "dashboard_emb.png"
+        )
+
+        cv_df = pd.DataFrame(results)
+        cv_df.to_csv("results_emb.csv", index=False)
+
+        # Save all predictions
+        all_predictions = []
+        for pred in predictions:
+            df = pd.DataFrame(
+                {
+                    "fold": pred["fold"],
+                    "true_label": pred["true_labels"],
+                    "predicted_label": pred["predictions"],
+                    "probability": pred["probabilities"],
+                    "rule": pred["rules"],
+                }
+            )
+            all_predictions.append(df)
+
+        predictions_df = pd.concat(all_predictions, ignore_index=True)
+        predictions_df.to_csv("predictions_emb.csv", index=False)
+
+
+class E5BaseEval(JigsawEval):
+    def evaluate_with_data(self, data):
+        data.drop_duplicates(
+            subset=["body", "rule"], keep="first", inplace=True
+        )
+
+        results = []
+        predictions = []
+        data = data.reset_index(drop=True)
+        data["row_id"] = data.index
+
+        engine = E5BaseEngine(
+            data_path=self.data_path,
+            model_path=self.model_path,
+            save_path=self.save_path,
+        )
+
+        probs = engine.get_scores(data, return_preds=True)
+        valid_labels = data["rule_violation"].tolist()
+        # Evaluate
+        eval_results = self.evaluate_model(probs, valid_labels, 0)
+
+        # Store results
+        results.append(
+            {
+                "fold": 1,
+                "precision": eval_results["precision"],
+                "recall": eval_results["recall"],
+                "f1": eval_results["f1"],
+                "auc": eval_results["auc"],
+                "train_size": 0,
+                "val_size": len(data),
+            }
+        )
+
+        # Store predictions
+        predictions.append(
+            {
+                "fold": 1,
+                "true_labels": eval_results["true_labels"],
+                "predictions": eval_results["predictions"],
+                "probabilities": eval_results["probabilities"],
+                "rules": data["rule"].tolist(),
+            }
+        )
+
+        print("Fold 1 Results:")
+        print(f"  Precision: {eval_results['precision']:.4f}")
+        print(f"  Recall:    {eval_results['recall']:.4f}")
+        print(f"  F1-Score:  {eval_results['f1']:.4f}")
+        print(f"  AUC-ROC:   {eval_results['auc']:.4f}")
+
+        return results, predictions
+
+    def run(self):
+        seed_everything(E5Config.RANDOM_STATE)
+
+        dataframe = get_train_dataframe(E5Config.model_type)
+
+        results, predictions = self.evaluate_with_data(dataframe)
+
+        # Print summary
+        self.print_cv_summary(results)
+
+        self.create_dashboard(
+            results, predictions, "E5 Base V3", "dashboard_e5_base.png"
+        )
+
+        cv_df = pd.DataFrame(results)
+        cv_df.to_csv("results_e5_base.csv", index=False)
+
+        # Save all predictions
+        all_predictions = []
+        for pred in predictions:
+            df = pd.DataFrame(
+                {
+                    "fold": pred["fold"],
+                    "true_label": pred["true_labels"],
+                    "predicted_label": pred["predictions"],
+                    "probability": pred["probabilities"],
+                    "rule": pred["rules"],
+                }
+            )
+            all_predictions.append(df)
+
+        predictions_df = pd.concat(all_predictions, ignore_index=True)
+        predictions_df.to_csv("predictions_e5_base.csv", index=False)
 
 
 class RobertaEval(JigsawEval):

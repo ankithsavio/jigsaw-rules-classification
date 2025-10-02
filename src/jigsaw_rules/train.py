@@ -239,6 +239,10 @@ class DebertaBase(JigsawTrainer):
         tokenizer = DebertaV2Tokenizer.from_pretrained(self.model_path)
         collator = DataCollatorWithPadding(tokenizer)
 
+        data.drop_duplicates(
+            subset=["body", "rule"], keep="first", inplace=True
+        )
+
         train_encodings = tokenizer(
             data["input_text"].tolist(),
             truncation=True,

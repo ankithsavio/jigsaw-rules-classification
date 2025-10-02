@@ -415,10 +415,12 @@ class DebertaEngine(JigsawInference):
             torch.tensor(predictions.predictions), dim=1
         )
 
+        probs = full_probs[:, 1].numpy()
+
         submission_df = pd.DataFrame(
             {
                 "row_id": data["row_id"],
-                "rule_violation": full_probs[:, 1].numpy(),
+                "rule_violation": probs,
             }
         )
         submission_df.to_csv(self.save_path, index=False)
