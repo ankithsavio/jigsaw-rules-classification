@@ -96,6 +96,24 @@ class E5Config(BaseConfig):
     include_train = True
 
 
+class BgeConfig(BaseConfig):
+    model_type = "bge_base"
+    data_path = "/kaggle/input/jigsaw-agile-community-rules/"
+    model_path = "/kaggle/input/baai/transformers/bge-base-en-v1.5/1"
+    ckpt_path = "/kaggle/working/bge-base-jigsaw/"
+    positive_answer = 1
+    negative_answer = 0
+    clean_text = True
+    top_k = 2000
+    batch_size = 128
+    out_file = "submission_bge.csv"
+    test_file = None
+    use_subset = False
+    subset = 0.1
+    include_train = True
+    augmentation_factor = 2
+
+
 class DebertaConfig(BaseConfig):
     model_type = "deberta_base"
     data_path = "/kaggle/input/jigsaw-agile-community-rules/"

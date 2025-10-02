@@ -1,11 +1,14 @@
+import random
 import re
 
 import numpy as np
 import pandas as pd  # type: ignore
 from cleantext import clean  # type: ignore
+from tqdm.auto import tqdm
 from transformers import AutoTokenizer
 
 from jigsaw_rules.configs import (
+    BgeConfig,
     ChatConfig,
     DebertaConfig,
     E5Config,
@@ -333,7 +336,7 @@ def build_dataframe_chat(dataframe=None, is_train=False):
                 .sample(frac=ChatConfig.subset, random_state=42)
                 .reset_index(drop=True)
             )
-            
+
     dataframe["prompt"] = dataframe.apply(
         lambda row: build_prompt(row, tokenizer), axis=1
     )
@@ -527,6 +530,110 @@ def build_dataframe_e5(dataframe=None, is_train=False):
     dataframe["anchor"] = dataframe.apply(build_prompt, axis=1)
     if E5Config.clean_text:
         dataframe["anchor"] = dataframe["anchor"].apply(cleaner)
+    return dataframe
+
+
+@DataframeFactory.register(BgeConfig.model_type)
+def build_dataframe_bge(dataframe=None, is_train=False):
+    test_df = pd.read_csv(f"{BgeConfig.data_path}/test.csv")
+
+    random.seed(BgeConfig.RANDOM_STATE)
+    np.random.seed(BgeConfig.RANDOM_STATE)
+
+    anchors = []
+    positives = []
+    negatives = []
+
+    for _, row in tqdm(
+        test_df.iterrows(), total=len(test_df), desc="Processing test rows"
+    ):
+        rule = cleaner(str(row["rule"]))
+
+        pos_examples = []  # Will contain compliant comments (rule-aligned)
+        neg_examples = []  # Will contain violating comments (rule-misaligned)
+
+        for neg_col in [
+            "negative_example_1",
+            "negative_example_2",
+        ]:  # Compliant → triplet positive
+            if pd.notna(row[neg_col]):
+                pos_examples.append(cleaner(str(row[neg_col])))
+
+        for pos_col in [
+            "positive_example_1",
+            "positive_example_2",
+        ]:  # Violating → triplet negative
+            if pd.notna(row[pos_col]):
+                neg_examples.append(cleaner(str(row[pos_col])))
+
+        for pos_ex in pos_examples:
+            for neg_ex in neg_examples:
+                anchors.append(rule)
+                positives.append(pos_ex)
+                negatives.append(neg_ex)
+
+    if BgeConfig.augmentation_factor > 0:
+        rule_positives = {}
+        rule_negatives = {}
+
+        for rule in test_df["rule"].unique():
+            rule_df = test_df[test_df["rule"] == rule]
+
+            pos_pool = []
+            neg_pool = []
+
+            for _, row in rule_df.iterrows():
+                for neg_col in [
+                    "negative_example_1",
+                    "negative_example_2",
+                ]:  # Compliant → triplet positive
+                    if pd.notna(row[neg_col]):
+                        pos_pool.append(cleaner(str(row[neg_col])))
+                for pos_col in [
+                    "positive_example_1",
+                    "positive_example_2",
+                ]:  # Violating → triplet negative
+                    if pd.notna(row[pos_col]):
+                        neg_pool.append(cleaner(str(row[pos_col])))
+
+            rule_positives[rule] = list(set(pos_pool))
+            rule_negatives[rule] = list(set(neg_pool))
+
+        for rule in test_df["rule"].unique():
+            clean_rule = cleaner(str(rule))
+            pos_pool = rule_positives[rule]
+            neg_pool = rule_negatives[rule]
+
+            n_samples = min(
+                BgeConfig.augmentation_factor * len(pos_pool),
+                len(pos_pool) * len(neg_pool),
+            )
+
+            for _ in range(n_samples):
+                if pos_pool and neg_pool:
+                    anchors.append(clean_rule)
+                    positives.append(random.choice(pos_pool))
+                    negatives.append(random.choice(neg_pool))
+
+    combined = list(zip(anchors, positives, negatives))
+    random.shuffle(combined)
+
+    if BgeConfig.subset < 1.0:
+        n_samples = int(len(combined) * BgeConfig.subset)
+        combined = combined[:n_samples]
+
+    anchors, positives, negatives = (
+        zip(*combined) if combined else ([], [], [])
+    )
+
+    dataframe = pd.DataFrame.from_dict(
+        {
+            "anchor": list(anchors),
+            "positive": list(positives),
+            "negative": list(negatives),
+        }
+    )
+
     return dataframe
 
 

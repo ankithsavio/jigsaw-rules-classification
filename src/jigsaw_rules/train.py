@@ -9,6 +9,7 @@ from datasets import Dataset  # type: ignore
 from sklearn.model_selection import train_test_split  # type: ignore
 
 from jigsaw_rules.configs import (
+    BgeConfig,
     DebertaConfig,
     E5Config,
     InstructConfig,
@@ -221,6 +222,64 @@ class E5Base(JigsawTrainer):
         self.train_with_data(dataframe)
 
 
+class BgeBase(JigsawTrainer):
+    def train_with_data(self, data):
+        """
+        Run Trainer on data
+        """
+        from sentence_transformers import (
+            SentenceTransformer,
+            SentenceTransformerTrainer,
+            SentenceTransformerTrainingArguments,
+            models,
+        )
+        from sentence_transformers.losses import TripletLoss
+
+        word_embedding_model = models.Transformer(
+            self.model_path, max_seq_length=128, do_lower_case=True
+        )
+        pooling_model = models.Pooling(
+            word_embedding_model.get_word_embedding_dimension(),
+            pooling_mode="mean",
+        )
+        model = SentenceTransformer(
+            modules=[word_embedding_model, pooling_model]
+        )
+        loss = TripletLoss(model=model, triplet_margin=0.25)
+
+        args = SentenceTransformerTrainingArguments(
+            output_dir="./results",
+            num_train_epochs=2,
+            learning_rate=2e-5,
+            per_device_train_batch_size=32,
+            warmup_steps=0,
+            report_to="none",
+            save_strategy="no",
+            fp16=True,
+            max_grad_norm=1.0,
+            dataloader_drop_last=False,
+            gradient_accumulation_steps=1,
+        )
+
+        trainer = SentenceTransformerTrainer(
+            model=model,
+            args=args,
+            train_dataset=data,
+            loss=loss,
+        )
+
+        trainer.train()
+        trainer.save_model(self.save_path)
+
+    def run(self):
+        """
+        Run Trainer on data determined by Config.data_path
+        """
+        dataframe = get_train_dataframe(BgeConfig.model_type)
+        dataset = Dataset.from_pandas(dataframe)
+        self.train_with_data(dataset)
+
+
 class DebertaBase(JigsawTrainer):
     def train_with_data(self, data):
         """
@@ -311,6 +370,13 @@ if __name__ == "__main__":
             data_path=E5Config.data_path,
             model_path=E5Config.model_path,
             save_path=E5Config.ckpt_path,
+        )
+        trainer.run()
+    elif args.type == BgeConfig.model_type:
+        trainer = BgeBase(
+            data_path=BgeConfig.data_path,
+            model_path=BgeConfig.model_path,
+            save_path=BgeConfig.ckpt_path,
         )
         trainer.run()
     elif args.type == DebertaConfig.model_type:
