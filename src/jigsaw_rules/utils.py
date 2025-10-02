@@ -598,4 +598,4 @@ def build_dataframe_deberta(dataframe=None, is_train=False):
 
 
 def get_train_dataframe(model_type):
-    return DataframeFactory.build(model_type)(is_train=True)
+    return DataframeFactory.build(model_type, is_train=True)
