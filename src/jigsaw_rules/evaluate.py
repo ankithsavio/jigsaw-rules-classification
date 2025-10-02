@@ -624,7 +624,9 @@ class Qwen3EmbEval(JigsawEval):
         ranks = probs["rule_violation"].rank(method="average") / (
             len(probs) + 1
         )
-        valid_labels = data["rule_violation"].tolist()
+        valid_labels = (
+            (data["rule_violation"] + 1) / 2
+        ).tolist()  # map to [0, 1] from [-1, 1]
         # Evaluate
         eval_results = self.evaluate_model(
             ranks,
@@ -716,7 +718,9 @@ class E5BaseEval(JigsawEval):
         )
 
         probs = engine.get_scores(data, return_preds=True)
-        valid_labels = data["rule_violation"].tolist()
+        valid_labels = (
+            (data["rule_violation"] + 1) / 2
+        ).tolist()  # map to [0, 1] from [-1, 1]
         # Evaluate
         eval_results = self.evaluate_model(probs, valid_labels, 0)
 
@@ -1059,12 +1063,14 @@ if __name__ == "__main__":
             lora_path=EmbeddingConfig.lora_path,
             save_path=EmbeddingConfig.out_file,
         )
+        evaluator.run()
     elif args.type == E5Config.model_type:
         evaluator = E5BaseEval(
             data_path=E5Config.data_path,
             model_path=E5Config.model_path,
             save_path=E5Config.out_file,
         )
+        evaluator.run()
     elif args.type == RobertaConfig.model_type:
         evaluator = RobertaEval(
             data_path=RobertaConfig.data_path,
