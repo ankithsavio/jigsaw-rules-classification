@@ -273,9 +273,7 @@ def build_dataframe_instruct(dataframe=None, is_train=False):
             ],
             inplace=True,
         )
-        dataframe = pd.concat([dataframe, train_df], axis=0).ignore_index(
-            drop=True
-        )
+        dataframe = pd.concat([dataframe, train_df], ignore_index=True)
 
     dataframe["prompt"] = dataframe.apply(build_prompt, axis=1)
 
@@ -578,7 +576,7 @@ def build_dataframe_deberta(dataframe=None, is_train=False):
                         flatten.append(sub_dataset)
 
         flatten.append(dataframe)
-        dataframe = pd.concat(flatten, axis=0).ignore_index(drop=True)
+        dataframe = pd.concat(flatten, ignore_index=True)
 
     dataframe = dataframe.copy()
     dataframe["input_text"] = dataframe.apply(build_prompt, axis=1)
