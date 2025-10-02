@@ -27,7 +27,7 @@ class Qwen3EmbEngine(JigsawInference):
         dataframe = build_dataframe_emb(dataframe)
         return dataframe
 
-    def get_scores(self, test_dataframe):
+    def get_scores(self, test_dataframe, return_preds=False):
         corpus_dataframe = get_train_dataframe(EmbeddingConfig.model_type)
 
         # Load base model
@@ -109,15 +109,20 @@ class Qwen3EmbEngine(JigsawInference):
             )
 
         submission = pd.concat(result, axis=0)
+        submission = test_dataframe[["row_id"]].merge(
+            submission, on="row_id", how="left"
+        )
+
+        if return_preds:
+            return submission["rule_violation"].to_numpy()
+
         return submission
 
     def run(self):
         dataframe = self.get_dataset()
 
         submission = self.get_scores(dataframe)
-        submission = dataframe[["row_id"]].merge(
-            submission, on="row_id", how="left"
-        )
+
         submission.to_csv(self.save_path, index=False)
 
 
@@ -130,7 +135,7 @@ class E5BaseEngine(JigsawInference):
         dataframe = build_dataframe_e5(dataframe)
         return dataframe
 
-    def get_scores(self, test_dataframe):
+    def get_scores(self, test_dataframe, return_preds=False):
         corpus_dataframe = get_train_dataframe(E5Config.model_type)
 
         embedding_model = SentenceTransformer(
@@ -200,15 +205,19 @@ class E5BaseEngine(JigsawInference):
             )
 
         submission = pd.concat(result, axis=0)
+        submission = test_dataframe[["row_id"]].merge(
+            submission, on="row_id", how="left"
+        )
+
+        if return_preds:
+            return submission["rule_violation"].to_numpy()
+
         return submission
 
     def run(self):
         dataframe = self.get_dataset()
 
         submission = self.get_scores(dataframe)
-        submission = dataframe[["row_id"]].merge(
-            submission, on="row_id", how="left"
-        )
         submission.to_csv(self.save_path, index=False)
 
 

@@ -93,7 +93,6 @@ class Instruct(JigsawTrainer):
         Run Trainer on data determined by Config.data_path
         """
         dataframe = get_train_dataframe(InstructConfig.model_type)
-
         self.train_with_data(dataframe)
 
 

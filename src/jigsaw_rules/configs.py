@@ -24,7 +24,7 @@ class InstructConfig(BaseConfig):
     test_file = None  # inference on different file
     use_subset = True
     subset = 0.5
-    include_train = True
+    include_train = False
 
 
 class ChatConfig(BaseConfig):
@@ -41,7 +41,7 @@ class ChatConfig(BaseConfig):
     test_file = None
     use_subset = False
     subset = 0.5
-    include_train = True
+    include_train = False
 
 
 class EmbeddingConfig(BaseConfig):
@@ -76,7 +76,7 @@ class RobertaConfig(BaseConfig):
     test_file = None
     use_subset = False
     subset = 0.5
-    include_train = True
+    include_train = False
 
 
 class E5Config(BaseConfig):
@@ -108,4 +108,4 @@ class DebertaConfig(BaseConfig):
     test_file = None
     use_subset = False
     subset = 0.5
-    include_train = True
+    include_train = False

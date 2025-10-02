@@ -101,9 +101,10 @@ def url_to_semantics(text):
     return f"\nURL Keywords: {' '.join(all_semantics)}"
 
 
-def get_dataframe_to_train(data_path, include_train=True, subset=None):
-    candidate_datasets = []
-
+def get_dataframe_to_train(data_path, subset=None):
+    """
+    Process test data to create additional training samples
+    """
     if subset is None:
         test_dataset = pd.read_csv(f"{data_path}/test.csv")
     else:
@@ -114,70 +115,64 @@ def get_dataframe_to_train(data_path, include_train=True, subset=None):
         )
 
     flatten = []
-    candidate_datasets.append(test_dataset)
-
-    if include_train:
-        train_dataset = pd.read_csv(f"{data_path}/train.csv")
-        candidate_datasets.append(train_dataset)
 
     ## test data is not labelled therefore use the example to create additional data for training
-    for dataset in candidate_datasets:
-        for violation_type in ["positive", "negative"]:
-            for i in range(1, 3):
-                sub_dataset = dataset[
-                    [
-                        "rule",
-                        "subreddit",
-                        "positive_example_1",
-                        "positive_example_2",
-                        "negative_example_1",
-                        "negative_example_2",
-                    ]
-                ].copy()
-                if violation_type == "positive":
-                    # body uses the current positive_example
-                    body_col = f"positive_example_{i}"
-                    other_positive_col = (
-                        f"positive_example_{3 - i}"  # another positive
-                    )
-                    sub_dataset["body"] = sub_dataset[body_col]
-                    sub_dataset["positive_example"] = sub_dataset[
-                        other_positive_col
-                    ]
-                    # negative_example randomly selected
-                    sub_dataset["negative_example"] = np.where(
-                        np.random.rand(len(sub_dataset)) < 0.5,
-                        sub_dataset["negative_example_1"],
-                        sub_dataset["negative_example_2"],
-                    )
-                    sub_dataset["rule_violation"] = 1
-
-                else:  # violation_type == "negative"
-                    body_col = f"negative_example_{i}"
-                    other_negative_col = f"negative_example_{3 - i}"
-                    sub_dataset["body"] = sub_dataset[body_col]
-                    sub_dataset["negative_example"] = sub_dataset[
-                        other_negative_col
-                    ]
-                    sub_dataset["positive_example"] = np.where(
-                        np.random.rand(len(sub_dataset)) < 0.5,
-                        sub_dataset["positive_example_1"],
-                        sub_dataset["positive_example_2"],
-                    )
-                    sub_dataset["rule_violation"] = 0
-
-                # Delete the original candidate column
-                sub_dataset.drop(
-                    columns=[
-                        "positive_example_1",
-                        "positive_example_2",
-                        "negative_example_1",
-                        "negative_example_2",
-                    ],
-                    inplace=True,
+    for violation_type in ["positive", "negative"]:
+        for i in range(1, 3):
+            sub_dataset = test_dataset[
+                [
+                    "rule",
+                    "subreddit",
+                    "positive_example_1",
+                    "positive_example_2",
+                    "negative_example_1",
+                    "negative_example_2",
+                ]
+            ].copy()
+            if violation_type == "positive":
+                # body uses the current positive_example
+                body_col = f"positive_example_{i}"
+                other_positive_col = (
+                    f"positive_example_{3 - i}"  # another positive
                 )
+                sub_dataset["body"] = sub_dataset[body_col]
+                sub_dataset["positive_example"] = sub_dataset[
+                    other_positive_col
+                ]
+                # negative_example randomly selected
+                sub_dataset["negative_example"] = np.where(
+                    np.random.rand(len(sub_dataset)) < 0.5,
+                    sub_dataset["negative_example_1"],
+                    sub_dataset["negative_example_2"],
+                )
+                sub_dataset["rule_violation"] = 1
 
-                flatten.append(sub_dataset)
+            else:  # violation_type == "negative"
+                body_col = f"negative_example_{i}"
+                other_negative_col = f"negative_example_{3 - i}"
+                sub_dataset["body"] = sub_dataset[body_col]
+                sub_dataset["negative_example"] = sub_dataset[
+                    other_negative_col
+                ]
+                sub_dataset["positive_example"] = np.where(
+                    np.random.rand(len(sub_dataset)) < 0.5,
+                    sub_dataset["positive_example_1"],
+                    sub_dataset["positive_example_2"],
+                )
+                sub_dataset["rule_violation"] = 0
+
+            # Delete the original candidate column
+            sub_dataset.drop(
+                columns=[
+                    "positive_example_1",
+                    "positive_example_2",
+                    "negative_example_1",
+                    "negative_example_2",
+                ],
+                inplace=True,
+            )
+
+            flatten.append(sub_dataset)
 
     # merge all DataFrame
     dataframe = pd.concat(flatten, axis=0)
@@ -232,7 +227,7 @@ def get_dataframe_to_train_semantic(
 
 
 @DataframeFactory.register(InstructConfig.model_type)
-def build_dataframe_instruct(dataframe=None):
+def build_dataframe_instruct(dataframe=None, is_train=False):
     def build_prompt(row):
         return (
             f"{InstructConfig.base_prompt}\n"
@@ -250,15 +245,37 @@ def build_dataframe_instruct(dataframe=None):
 
     if dataframe is None:  # training
         if not InstructConfig.use_subset:
-            dataframe = get_dataframe_to_train(
-                InstructConfig.data_path, InstructConfig.include_train
-            )
+            dataframe = get_dataframe_to_train(InstructConfig.data_path)
         else:
             dataframe = get_dataframe_to_train(
                 InstructConfig.data_path,
-                InstructConfig.include_train,
                 InstructConfig.subset,
             )
+
+    if is_train and InstructConfig.include_train:
+        train_df = pd.read_csv(f"{InstructConfig.data_path}/train.csv")
+        train_df["positive_example"] = np.where(
+            np.random.rand(len(train_df)) < 0.5,
+            train_df["positive_example_1"],
+            train_df["positive_example_2"],
+        )
+        train_df["negative_example"] = np.where(
+            np.random.rand(len(train_df)) < 0.5,
+            train_df["negative_example_1"],
+            train_df["negative_example_2"],
+        )
+        train_df.drop(
+            columns=[
+                "positive_example_1",
+                "positive_example_2",
+                "negative_example_1",
+                "negative_example_2",
+            ],
+            inplace=True,
+        )
+        dataframe = pd.concat([dataframe, train_df], axis=0).ignore_index(
+            drop=True
+        )
 
     dataframe["prompt"] = dataframe.apply(build_prompt, axis=1)
 
@@ -277,7 +294,7 @@ def build_dataframe_instruct(dataframe=None):
 
 
 @DataframeFactory.register(ChatConfig.model_type)
-def build_dataframe_chat(dataframe=None):
+def build_dataframe_chat(dataframe=None, is_train=False):
     def build_prompt(row, tokenizer):
         text = (
             f"\nr/{row['subreddit']}\n"
@@ -309,7 +326,7 @@ def build_dataframe_chat(dataframe=None):
         return prompt
 
     tokenizer = AutoTokenizer.from_pretrained(ChatConfig.model_path)
-    if dataframe is None:  # training with only train.csv
+    if is_train and (dataframe is None):  # training with only train.csv
         if not ChatConfig.use_subset:
             dataframe = pd.read_csv(f"{ChatConfig.data_path}/train.csv")
         else:
@@ -368,13 +385,11 @@ def build_dataframe_emb(dataframe=None):
 
 
 @DataframeFactory.register(EmbeddingConfig.model_type)
-def build_dataframe_emb_swift():
+def build_dataframe_emb_swift(is_train=False):
     """
     Swift framework Qwen3 Embedding Fine Tuning
     """
-    dataframe = get_dataframe_to_train(
-        EmbeddingConfig.data_path, EmbeddingConfig.include_train
-    )
+    dataframe = get_dataframe_to_train(EmbeddingConfig.data_path)
 
     dataframe["messages"] = dataframe.apply(
         lambda row: [
@@ -425,7 +440,7 @@ def build_dataframe_emb_swift():
 
 
 @DataframeFactory.register(RobertaConfig.model_type)
-def build_dataframe_roberta():
+def build_dataframe_roberta(is_train=False):
     def build_prompt(row):
         rule = row["rule"]
         body = row["body"]
@@ -491,7 +506,7 @@ def build_dataframe_roberta():
 
 
 @DataframeFactory.register(E5Config.model_type)
-def build_dataframe_e5(dataframe=None):
+def build_dataframe_e5(dataframe=None, is_train=False):
     def build_prompt(row):
         return (
             "rule:"
@@ -504,12 +519,10 @@ def build_dataframe_e5(dataframe=None):
 
     if dataframe is None:  # training
         if not E5Config.use_subset:
-            dataframe = get_dataframe_to_train(
-                E5Config.data_path, E5Config.include_train
-            )
+            dataframe = get_dataframe_to_train(E5Config.data_path)
         else:
             dataframe = get_dataframe_to_train(
-                E5Config.data_path, E5Config.include_train, E5Config.subset
+                E5Config.data_path, E5Config.subset
             )
 
     dataframe["anchor"] = dataframe.apply(build_prompt, axis=1)
@@ -519,7 +532,7 @@ def build_dataframe_e5(dataframe=None):
 
 
 @DataframeFactory.register(DebertaConfig.model_type)
-def build_dataframe_deberta(dataframe=None):
+def build_dataframe_deberta(dataframe=None, is_train=False):
     def build_prompt(row):
         rule = row["rule"]
         body = row["body"]
@@ -531,14 +544,41 @@ def build_dataframe_deberta(dataframe=None):
         if not DebertaConfig.use_subset:
             dataframe = get_dataframe_to_train(
                 DebertaConfig.data_path,
-                DebertaConfig.include_train,
             )
         else:
             dataframe = get_dataframe_to_train(
                 DebertaConfig.data_path,
-                DebertaConfig.include_train,
                 DebertaConfig.subset,
             )
+
+    if is_train and DebertaConfig.include_train:
+        flatten = []
+        train_df = pd.read_csv(f"{DebertaConfig.data_path}/train.csv")
+        for violation_type in ["positive", "negative"]:
+            for i in range(1, 3):
+                col_name = f"{violation_type}_example_{i}"
+
+                if col_name in train_df.columns:
+                    sub_dataset = train_df[
+                        [col_name, "rule", "subreddit"]
+                    ].copy()
+                    sub_dataset = sub_dataset.rename(
+                        columns={col_name: "body"}
+                    )
+                    sub_dataset["rule_violation"] = (
+                        1 if violation_type == "positive" else 0
+                    )
+
+                    sub_dataset.dropna(subset=["body"], inplace=True)
+                    sub_dataset = sub_dataset[
+                        sub_dataset["body"].str.strip().str.len() > 0
+                    ]
+
+                    if not sub_dataset.empty:
+                        flatten.append(sub_dataset)
+
+        flatten.append(dataframe)
+        dataframe = pd.concat(flatten, axis=0).ignore_index(drop=True)
 
     dataframe = dataframe.copy()
     dataframe["input_text"] = dataframe.apply(build_prompt, axis=1)
@@ -558,4 +598,4 @@ def build_dataframe_deberta(dataframe=None):
 
 
 def get_train_dataframe(model_type):
-    return DataframeFactory.build(model_type)
+    return DataframeFactory.build(model_type)(is_train=True)
