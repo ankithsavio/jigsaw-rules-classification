@@ -100,11 +100,6 @@ class InstructEngine(JigsawInference):
             [InstructConfig.positive_answer, InstructConfig.negative_answer]
         ]
         predictions["row_id"] = test_dataset["row_id"]
-        predictions[
-            [InstructConfig.positive_answer, InstructConfig.negative_answer]
-        ] = predictions[
-            [InstructConfig.positive_answer, InstructConfig.negative_answer]
-        ].apply(lambda x: softmax(x.values), axis=1, result_type="expand")
 
         return predictions
 
