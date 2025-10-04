@@ -109,7 +109,7 @@ class BgeConfig(BaseConfig):
     out_file = "submission_bge.csv"
     test_file = None
     use_subset = False
-    subset = 0.1
+    subset = 1.0
     include_train = True
     augmentation_factor = 2
 
@@ -123,6 +123,21 @@ class DebertaConfig(BaseConfig):
     negative_answer = 0
     clean_text = False
     out_file = "submission_deberta.csv"
+    test_file = None
+    use_subset = False
+    subset = 0.5
+    include_train = False
+
+
+class ModernBERTConfig(BaseConfig):
+    model_type = "modernbert_base"
+    data_path = "/kaggle/input/jigsaw-agile-community-rules/"
+    model_path = "/kaggle/input/modernbert/transformers/base/2"
+    ckpt_path = "/kaggle/working/modernbert-base-jigsaw/"
+    positive_answer = 1
+    negative_answer = 0
+    clean_text = False
+    out_file = "submission_modernbert.csv"
     test_file = None
     use_subset = False
     subset = 0.5

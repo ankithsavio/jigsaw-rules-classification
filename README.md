@@ -40,9 +40,9 @@ Allows user to interact with dataset, training and inference scripts through the
 
 ### Training
 
-    !accelerate launch --config_file config/accelerate_config.yaml -m jigsaw_rules.train "instruct"
+    !accelerate launch --config_file config/accelerate_config.yaml -m jigsaw_rules.train "instruct" # distributed data parallel
 
-    !python -m jigsaw_rules.train <type>
+    !python -m jigsaw_rules.train <type> # data parallel
 
 ### Inference
 
@@ -80,6 +80,8 @@ Supported models
 - Roberta Base : Uses Trainer from transformers - RobertaBase
 - Deberta Base : Uses Trainer from transformers - DebertaBase
 - E5 Base V3 : Uses SentenceTransformerTrainer from sentence_transformers - E5Base
+- Bge Base : Uses SentenceTransformerTrainer from sentence_transformers - BgeBase
+- ModernBERT : Uses Trainer from transformers - ModernBERTBase
 
 ## Inference
 
@@ -89,6 +91,7 @@ Supported models
 - Qwen 2.5 14b - ChatEngine
 - Roberta Base - RobertaEngine
 - Deberta Base - DebertaEngine
+- ModernBERT Base - ModernBERTEngine
 
 ## Semantic Search
 
@@ -96,3 +99,4 @@ Supported models
 
 - Qwen 3 0.6b - Qwen3EmbEngine
 - E5 Base V3 - E5BaseEngine
+- Bge Base - BgeBaseEngine

@@ -13,6 +13,7 @@ from jigsaw_rules.configs import (
     DebertaConfig,
     E5Config,
     InstructConfig,
+    ModernBERTConfig,
     RobertaConfig,
 )
 from jigsaw_rules.dataset import RedditDataset
@@ -343,6 +344,69 @@ class DebertaBase(JigsawTrainer):
         self.train_with_data(dataframe)
 
 
+class ModernBERTBase(JigsawTrainer):
+    def train_with_data(self, data):
+        """
+        Run Trainer on data
+        """
+        from transformers import (
+            AutoTokenizer,
+            DataCollatorWithPadding,
+            ModernBertForSequenceClassification,
+            Trainer,
+            TrainingArguments,
+        )
+
+        os.environ["TOKENIZERS_PARALLELISM"] = "false"
+        tokenizer = AutoTokenizer.from_pretrained(self.model_path)
+        collator = DataCollatorWithPadding(tokenizer)
+
+        data.drop_duplicates(
+            subset=["body", "rule"], keep="first", inplace=True
+        )
+
+        train_encodings = tokenizer(
+            data["input_text"].tolist(),
+            truncation=True,
+            max_length=8192,
+        )
+
+        train_labels = data["rule_violation"].tolist()
+        train_dataset = RedditDataset(train_encodings, train_labels)
+
+        model = ModernBertForSequenceClassification.from_pretrained(
+            self.model_path, num_labels=2
+        )
+
+        training_args = TrainingArguments(
+            output_dir="./results",
+            num_train_epochs=3,
+            learning_rate=2e-5,
+            per_device_train_batch_size=8,
+            warmup_ratio=0.1,
+            weight_decay=0.01,
+            report_to="none",
+            save_strategy="no",
+        )
+
+        trainer = Trainer(
+            model=model,
+            args=training_args,
+            train_dataset=train_dataset,
+            data_collator=collator,
+        )
+        trainer.train()
+        trainer.save_model(self.save_path)
+        tokenizer.save_pretrained(self.save_path)
+
+    def run(self):
+        """
+        Run Trainer on data determined by Config.data_path
+        """
+        dataframe = get_train_dataframe(DebertaConfig.model_type)
+        self.train_with_data(dataframe)
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -384,6 +448,13 @@ if __name__ == "__main__":
             data_path=DebertaConfig.data_path,
             model_path=DebertaConfig.model_path,
             save_path=DebertaConfig.ckpt_path,
+        )
+        trainer.run()
+    elif args.type == ModernBERTConfig.model_type:
+        trainer = ModernBERTBase(
+            data_path=ModernBERTConfig.data_path,
+            model_path=ModernBERTConfig.model_path,
+            save_path=ModernBERTConfig.ckpt_path,
         )
         trainer.run()
     else:

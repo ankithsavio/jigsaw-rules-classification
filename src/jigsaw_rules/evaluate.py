@@ -11,6 +11,7 @@ import numpy as np
 import pandas as pd  # type: ignore
 import seaborn as sns  # type: ignore
 import torch
+from datasets import Dataset
 from sklearn.metrics import (  # type: ignore
     classification_report,
     confusion_matrix,
@@ -23,26 +24,39 @@ from sklearn.model_selection import (  # type: ignore
 )
 
 from jigsaw_rules.configs import (
+    BgeConfig,
     ChatConfig,
     DebertaConfig,
     E5Config,
     EmbeddingConfig,
     InstructConfig,
+    ModernBERTConfig,
     RobertaConfig,
 )
 from jigsaw_rules.inference import (
     ChatEngine,
     DebertaEngine,
     InstructEngine,
+    ModernBERTEngine,
     RobertaEngine,
 )
-from jigsaw_rules.semantic import E5BaseEngine, Qwen3EmbEngine
+from jigsaw_rules.semantic import BgeBaseEngine, E5BaseEngine, Qwen3EmbEngine
 from jigsaw_rules.train import (
+    BgeBase,
     DebertaBase,
     Instruct,
+    ModernBERTBase,
     RobertaBase,
 )
-from jigsaw_rules.utils import get_train_dataframe
+from jigsaw_rules.utils import (
+    build_dataframe_bge,
+    build_dataframe_chat,
+    build_dataframe_deberta,
+    build_dataframe_e5,
+    build_dataframe_emb,
+    build_dataframe_instruct,
+    get_train_dataframe,
+)
 
 
 def seed_everything(seed=42):
@@ -328,7 +342,7 @@ class JigsawEval:
         precision, recall, f1, _ = precision_recall_fscore_support(
             true_labels, pred_labels, average="binary"
         )
-        auc_score = roc_auc_score(true_labels, test_probs)  # [1, 0 , 1, 1]
+        auc_score = roc_auc_score(true_labels, test_probs)
         cm = confusion_matrix(true_labels, pred_labels)
 
         return {
@@ -1032,6 +1046,125 @@ class DebertaEval(JigsawEval):
         predictions_df.to_csv("cv_predictions_deberta.csv", index=False)
 
 
+class ModernBERTEval(JigsawEval):
+    def cross_validate_with_data(self, data):
+        data.drop_duplicates(
+            subset=["body", "rule"], keep="first", inplace=True
+        )
+        skf = StratifiedKFold(
+            n_splits=ModernBERTConfig.N_SPLITS,
+            shuffle=True,
+            random_state=ModernBERTConfig.RANDOM_STATE,
+        )
+        cv_results = []
+        fold_predictions = []
+        data = data.reset_index(drop=True)
+        data["row_id"] = data.index
+
+        for fold, (train_idx, val_idx) in enumerate(
+            skf.split(data, data["rule"]), 1
+        ):
+            # Split data
+            train_df = data.iloc[train_idx].reset_index(drop=True)
+            val_df = data.iloc[val_idx].reset_index(drop=True)
+
+            # Initialize model for this fold
+            fold_save_path = self.save_path + f"_fold{fold}"
+
+            trainer = ModernBERTBase(
+                data_path=self.data_path,
+                model_path=self.model_path,
+                save_path=fold_save_path,
+            )
+            trainer.train_with_data(train_df)
+
+            engine = ModernBERTEngine(
+                data_path=self.data_path,
+                model_path=fold_save_path,
+                save_path=DebertaConfig.out_file,
+            )
+
+            probs = engine.inference_with_data(val_df, return_preds=True)
+            ranks = probs["rule_violation"].rank(method="average") / (
+                len(probs) + 1
+            )
+            valid_labels = val_df["rule_violation"].tolist()
+            # Evaluate
+            fold_results = self.evaluate_model(
+                ranks,
+                valid_labels,
+            )
+
+            # Store results
+            cv_results.append(
+                {
+                    "fold": fold,
+                    "precision": fold_results["precision"],
+                    "recall": fold_results["recall"],
+                    "f1": fold_results["f1"],
+                    "auc": fold_results["auc"],
+                    "train_size": len(train_df),
+                    "val_size": len(val_df),
+                }
+            )
+
+            # Store predictions for this fold
+            fold_predictions.append(
+                {
+                    "fold": fold,
+                    "true_labels": fold_results["true_labels"],
+                    "predictions": fold_results["predictions"],
+                    "probabilities": fold_results["probabilities"],
+                    "rules": val_df["rule"].tolist(),
+                }
+            )
+
+            print(f"Fold {fold} Results:")
+            print(f"  Precision: {fold_results['precision']:.4f}")
+            print(f"  Recall:    {fold_results['recall']:.4f}")
+            print(f"  F1-Score:  {fold_results['f1']:.4f}")
+            print(f"  AUC-ROC:   {fold_results['auc']:.4f}")
+
+        return cv_results, fold_predictions
+
+    def run(self):
+        seed_everything(ModernBERTConfig.RANDOM_STATE)
+
+        dataframe = get_train_dataframe(DebertaConfig.model_type)
+
+        cv_results, fold_predictions = self.cross_validate_with_data(dataframe)
+
+        # Print summary
+        self.print_cv_summary(cv_results)
+
+        self.create_dashboard(
+            cv_results,
+            fold_predictions,
+            "ModernBERT Base",
+            "cv_dashboard_modernbert.png",
+        )
+
+        cv_df = pd.DataFrame(cv_results)
+        cv_df.to_csv("cross_validation_results_modernbert.csv", index=False)
+
+        # Save all predictions
+        all_predictions = []
+        for fold_pred in fold_predictions:
+            fold_df = pd.DataFrame(
+                {
+                    "fold": fold_pred["fold"],
+                    "true_label": fold_pred["true_labels"],
+                    "predicted_label": fold_pred["predictions"],
+                    "probability": fold_pred["probabilities"],
+                    "rule": fold_pred["rules"],
+                }
+            )
+            all_predictions.append(fold_df)
+
+        predictions_df = pd.concat(all_predictions, ignore_index=True)
+        predictions_df.to_csv("cv_predictions_modernbert.csv", index=False)
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -1085,5 +1218,19 @@ if __name__ == "__main__":
             save_path=DebertaConfig.ckpt_path,
         )
         evaluator.run()
+    elif args.type == ModernBERTConfig.model_type:
+        evaluator = ModernBERTEval(
+            data_path=ModernBERTConfig.data_path,
+            model_path=ModernBERTConfig.model_path,
+            save_path=ModernBERTConfig.ckpt_path,
+        )
+        evaluator.run()
+    # elif args.type == BgeConfig.model_type:
+    #     evaluator = BgeEval(
+    #         data_path=BgeConfig.data_path,
+    #         model_path=BgeConfig.model_path,
+    #         save_path=BgeConfig.ckpt_path,
+    #     )
+    #     evaluator.run()
     else:
         raise AttributeError("Invalid evaluation type")

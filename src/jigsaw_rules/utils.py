@@ -535,7 +535,12 @@ def build_dataframe_e5(dataframe=None, is_train=False):
 
 @DataframeFactory.register(BgeConfig.model_type)
 def build_dataframe_bge(dataframe=None, is_train=False):
-    test_df = pd.read_csv(f"{BgeConfig.data_path}/test.csv")
+    if dataframe is None:
+        test_df = pd.read_csv(f"{BgeConfig.data_path}/test.csv")
+    else:
+        test_df = dataframe.sample(frac=1, random_state=42).reset_index(
+            drop=True
+        )
 
     random.seed(BgeConfig.RANDOM_STATE)
     np.random.seed(BgeConfig.RANDOM_STATE)

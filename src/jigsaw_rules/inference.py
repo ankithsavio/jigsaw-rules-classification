@@ -20,6 +20,7 @@ from jigsaw_rules.configs import (
     ChatConfig,
     DebertaConfig,
     InstructConfig,
+    ModernBERTConfig,
     RobertaConfig,
 )
 from jigsaw_rules.dataset import RedditDataset
@@ -99,6 +100,12 @@ class InstructEngine(JigsawInference):
             [InstructConfig.positive_answer, InstructConfig.negative_answer]
         ]
         predictions["row_id"] = test_dataset["row_id"]
+        predictions[
+            [InstructConfig.positive_answer, InstructConfig.negative_answer]
+        ] = predictions[
+            [InstructConfig.positive_answer, InstructConfig.negative_answer]
+        ].apply(lambda x: softmax(x.values), axis=1, result_type="expand")
+
         return predictions
 
     def worker(self, device_id, test_dataset, return_dict):
@@ -428,6 +435,87 @@ class DebertaEngine(JigsawInference):
         self.inference_with_data(test_dataframe)
 
 
+class ModernBERTEngine(JigsawInference):
+    def get_dataset(self):
+        """
+        get test data
+        """
+        if ModernBERTConfig.test_file is None:
+            dataframe = pd.read_csv(f"{self.data_path}/test.csv")
+        else:
+            dataframe = pd.read_csv(ModernBERTConfig.test_file)
+        dataframe = build_dataframe_deberta(
+            dataframe
+        )  # TODO need review for separate builder
+        return dataframe
+
+    def inference_with_data(self, data, return_preds=False):
+        """
+        Run inference on given data using Data Parallelism
+        """
+        os.environ["TOKENIZERS_PARALLELISM"] = "false"
+        from transformers import (  # hackyfix : avoid cuda init in the parent process
+            AutoTokenizer,
+            DataCollatorWithPadding,
+            ModernBertForSequenceClassification,
+            Trainer,
+            TrainingArguments,
+        )
+
+        tokenizer = AutoTokenizer.from_pretrained(self.model_path)
+        collator = DataCollatorWithPadding(tokenizer)
+
+        model = ModernBertForSequenceClassification.from_pretrained(
+            self.model_path, num_labels=2
+        )
+
+        training_args = TrainingArguments(
+            output_dir="./results",
+            per_device_train_batch_size=16,
+            per_device_eval_batch_size=16,
+            report_to="none",
+            save_strategy="no",
+        )
+
+        trainer = Trainer(
+            model=model,
+            args=training_args,
+            data_collator=collator,
+        )
+
+        test_encodings = tokenizer(
+            data["input_text"].tolist(),
+            truncation=True,
+            max_length=256,
+        )
+
+        test_dataset = RedditDataset(test_encodings)
+
+        predictions = trainer.predict(test_dataset)
+        full_probs = torch.nn.functional.softmax(
+            torch.tensor(predictions.predictions), dim=1
+        )
+
+        probs = full_probs[:, 1].numpy()
+
+        submission_df = pd.DataFrame(
+            {
+                "row_id": data["row_id"],
+                "rule_violation": probs,
+            }
+        )
+        submission_df.to_csv(self.save_path, index=False)
+        if return_preds:
+            return submission_df[["rule_violation"]]
+
+    def run(self):
+        """
+        Run inference on test data
+        """
+        test_dataframe = self.get_dataset()
+        self.inference_with_data(test_dataframe)
+
+
 if __name__ == "__main__":
     import argparse
 
@@ -466,6 +554,13 @@ if __name__ == "__main__":
             data_path=DebertaConfig.data_path,
             model_path=DebertaConfig.ckpt_path,
             save_path=DebertaConfig.out_file,
+        )
+        inference.run()
+    elif args.type == ModernBERTConfig.model_type:
+        inference = ModernBERTEngine(
+            data_path=ModernBERTConfig.data_path,
+            model_path=ModernBERTConfig.ckpt_path,
+            save_path=ModernBERTConfig.out_file,
         )
         inference.run()
     else:
