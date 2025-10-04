@@ -24,7 +24,7 @@ class InstructConfig(BaseConfig):
     test_file = None  # inference on different file
     use_subset = True
     subset = 0.5
-    include_train = False
+    include_train = True
 
 
 class ChatConfig(BaseConfig):

@@ -178,6 +178,11 @@ class InstructEngine(JigsawInference):
         predictions = pd.concat(
             [return_dict[0], return_dict[1]], ignore_index=True
         )
+        predictions[
+            [InstructConfig.positive_answer, InstructConfig.negative_answer]
+        ] = predictions[
+            [InstructConfig.positive_answer, InstructConfig.negative_answer]
+        ].apply(lambda x: softmax(x.values), axis=1, result_type="expand")
 
         # build submission
         submission = predictions[
