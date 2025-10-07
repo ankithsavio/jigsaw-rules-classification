@@ -1,3 +1,5 @@
+## Jigsaw Rule Competition
+
 The repository currently uses the code from the following [kaggle notebook](https://www.kaggle.com/code/hiranorm/offline-install-vllm-0-10-0-i-qwenemdding-llama)
 
 Allows user to interact with dataset, training and inference scripts through the jigsaw_rules package
