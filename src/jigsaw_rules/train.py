@@ -12,12 +12,16 @@ from jigsaw_rules.configs import (
     BgeConfig,
     DebertaConfig,
     E5Config,
+    ExtendedDebertaConfig,
     InstructConfig,
     ModernBERTConfig,
     RobertaConfig,
 )
-from jigsaw_rules.dataset import RedditDataset
+from jigsaw_rules.dataset import ExtendedRedditDataset, FusionCollator, RedditDataset
+from jigsaw_rules.models import DebertaWithFusion
 from jigsaw_rules.utils import get_train_dataframe
+
+from jigsaw_rules.inference import ChatEngine, ChatConfig
 
 
 class JigsawTrainer:
@@ -344,6 +348,105 @@ class DebertaBase(JigsawTrainer):
         self.train_with_data(dataframe)
 
 
+class ExtendedDebertaBase(JigsawTrainer):
+    def train_with_data(self, data):
+        """
+        Train a fusion head on top of DeBERTa logits + two extra probabilities.
+        Expected columns in `data`:
+          - 'input_text' (str)
+          - 'rule_violation' (int 0/1)
+          - 'p1' (float in [0,1])  # first external probability
+          - 'p2' (float in [0,1])  # second external probability
+        """
+
+        from transformers import (
+            DebertaV2Tokenizer,
+            TrainingArguments,
+            Trainer,
+            DebertaV2Config,
+        )
+        
+        os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+        # --- tokenizer & de-dup ---
+        tokenizer = DebertaV2Tokenizer.from_pretrained(self.model_path)
+        
+        ## TODO: Check this later I don't want to suffle by mistake
+        data = data.drop_duplicates(subset=["body", "rule"], keep="first").reset_index(drop=True)
+
+        # --- tokenize ---
+        enc = tokenizer(
+            data["input_text"].tolist(),
+            truncation=True,
+            max_length=512,
+            padding=False,   # padding handled by collator
+        )
+
+        labels = data["rule_violation"].astype(int).tolist()
+        extras = data[["p1", "p2"]].astype(float).values  # shape [N,2]
+
+        dataset = ExtendedRedditDataset(enc, labels, extras)
+        collator = FusionCollator(tokenizer)
+
+        # --- fusion model (freeze base by default) ---
+        cfg = DebertaV2Config.from_pretrained(self.model_path, num_labels=2)
+        model = DebertaWithFusion(
+            cfg,
+            base_model_name=self.model_path,
+            freeze_base=False,      # set False to fine-tune DeBERTa too
+            extra_size=2,
+            hidden_size=ExtendedDebertaConfig.hidden_size,
+        )
+
+        # --- training args ---
+        training_args = TrainingArguments(
+            output_dir="./results",
+            num_train_epochs=3,
+            learning_rate=2e-5,  # slightly higher since only small head trains
+            per_device_train_batch_size=8,
+            warmup_ratio=0.1,
+            weight_decay=0.01,
+            report_to="none",
+            save_strategy="no",
+        )
+
+        trainer = Trainer(
+            model=model,
+            args=training_args,
+            train_dataset=dataset,
+            data_collator=collator,
+        )
+
+        trainer.train()
+        trainer.save_model(self.save_path)        # saves config + weights
+        tokenizer.save_pretrained(self.save_path) # keeps tokenizer with the model
+    
+    def run(self):
+        """
+        Run Trainer on data determined by Config.data_path
+        """
+        dataframe = get_train_dataframe(ExtendedDebertaConfig.model_type)
+        
+        ## Adding extra probabilities for fusion training
+        ## Brute force solution run this in the kaggle notebook first
+        ## to generate the probabilities and save them to a csv
+        ## then read them here and merge with the dataframe
+        # because inserting coding to clean the gpu can cause troubles
+        # inference = ChatEngine(
+        #     data_path=ChatConfig.data_path,
+        #     model_path=ChatConfig.model_path,
+        #     lora_path=ChatConfig.lora_path,
+        #     save_path=ChatConfig.out_file,
+        # )
+        # inference.run()
+
+        # TODO: I need to loaded the data from training not inference
+        chat_data = pd.read_csv(ChatConfig.out_file)
+        chat_logits = chat_data[["p1", "p2"]]
+        dataframe = pd.concat([dataframe, chat_logits], axis=1)
+
+        self.train_with_data(dataframe)
+
 class ModernBERTBase(JigsawTrainer):
     def train_with_data(self, data):
         """
@@ -448,6 +551,13 @@ if __name__ == "__main__":
             data_path=DebertaConfig.data_path,
             model_path=DebertaConfig.model_path,
             save_path=DebertaConfig.ckpt_path,
+        )
+        trainer.run()
+    elif args.type == ExtendedDebertaConfig.model_type:
+        trainer = ExtendedDebertaBase(
+            data_path=ExtendedDebertaConfig.data_path,
+            model_path=ExtendedDebertaConfig.model_path,
+            save_path=ExtendedDebertaConfig.ckpt_path,
         )
         trainer.run()
     elif args.type == ModernBERTConfig.model_type:

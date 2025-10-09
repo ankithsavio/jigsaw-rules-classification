@@ -265,6 +265,12 @@ class ChatEngine(JigsawInference):
         ]
         data = pd.concat([data, logit_matrix], axis=1)
 
+        if ChatConfig.return_logits:
+            # p1 is positive prob, p2 is negative prob
+            data[["p1", "p2"]] = data[
+                [ChatConfig.positive_answer, ChatConfig.negative_answer]
+            ]
+
         data[[ChatConfig.positive_answer, ChatConfig.negative_answer]] = data[
             [ChatConfig.positive_answer, ChatConfig.negative_answer]
         ].apply(lambda x: softmax(x.values), axis=1, result_type="expand")

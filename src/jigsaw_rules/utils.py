@@ -6,6 +6,7 @@ import pandas as pd  # type: ignore
 from cleantext import clean  # type: ignore
 from tqdm.auto import tqdm
 from transformers import AutoTokenizer
+import gc, torch
 
 from jigsaw_rules.configs import (
     BgeConfig,
@@ -710,3 +711,23 @@ def build_dataframe_deberta(dataframe=None, is_train=False):
 
 def get_train_dataframe(model_type):
     return DataframeFactory.build(model_type, is_train=True)
+
+
+def cleanup_memory(*objs):
+    # Delete Python refs to large objects
+    for o in objs:
+        try:
+            del o
+        except Exception:
+            pass
+    # Run Python GC
+    gc.collect()
+
+    # Free GPU caches (if any model hit CUDA)
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        # Reclaim inter-process memory allocations
+        try:
+            torch.cuda.ipc_collect()
+        except Exception:
+            pass

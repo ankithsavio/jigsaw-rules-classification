@@ -41,7 +41,8 @@ class ChatConfig(BaseConfig):
     test_file = None
     use_subset = False
     subset = 0.5
-    include_train = False
+    include_train = False#
+    return_logits = True
 
 
 class EmbeddingConfig(BaseConfig):
@@ -128,6 +129,11 @@ class DebertaConfig(BaseConfig):
     subset = 0.5
     include_train = False
 
+class ExtendedDebertaConfig(DebertaConfig):
+    model_type = "extended_deberta_base"
+    out_file = "submission_extended_deberta.csv"
+    hidden_size = 32
+    extra_size = 2 # two extra probabilities
 
 class ModernBERTConfig(BaseConfig):
     model_type = "modernbert_base"
