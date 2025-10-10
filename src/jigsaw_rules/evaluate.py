@@ -449,10 +449,6 @@ class InstructEval(JigsawEval):
                 ranks,
                 valid_labels,
             )
-            val_df["preds"] = probs["rule_violation"]
-            val_df.to_csv(
-                fold_save_path + f"val_result_fold{fold}_instruct.csv"
-            )
 
             # Store results
             cv_results.append(
@@ -473,8 +469,13 @@ class InstructEval(JigsawEval):
                     "fold": fold,
                     "true_labels": fold_results["true_labels"],
                     "predictions": fold_results["predictions"],
-                    "probabilities": fold_results["probabilities"],
-                    "rules": val_df["rule"].tolist(),
+                    "normalized_ranks": fold_results["probabilities"],
+                    "probabilities": probs["rule_violation"].tolist(),
+                    "body": val_df["body"].tolist(),
+                    "subreddit": val_df["subreddit"].tolist(),
+                    "prompt": val_df["prompt"].tolist(),
+                    "completion": val_df["completion"].tolist(),
+                    "rule": val_df["rule"].tolist(),
                 }
             )
 
@@ -508,16 +509,8 @@ class InstructEval(JigsawEval):
 
         # Save all predictions
         all_predictions = []
-        for fold_pred in fold_predictions:
-            fold_df = pd.DataFrame(
-                {
-                    "fold": fold_pred["fold"],
-                    "true_label": fold_pred["true_labels"],
-                    "predicted_label": fold_pred["predictions"],
-                    "probability": fold_pred["probabilities"],
-                    "rule": fold_pred["rules"],
-                }
-            )
+        for fold_pred_dict in fold_predictions:
+            fold_df = pd.DataFrame(fold_pred_dict)
             all_predictions.append(fold_df)
 
         predictions_df = pd.concat(all_predictions, ignore_index=True)
@@ -575,8 +568,13 @@ class ChatEval(JigsawEval):
                 "fold": 1,
                 "true_labels": eval_results["true_labels"],
                 "predictions": eval_results["predictions"],
-                "probabilities": eval_results["probabilities"],
-                "rules": data["rule"].tolist(),
+                "normalized_ranks": eval_results["probabilities"],
+                "probabilities": probs["rule_violation"].tolist(),
+                "body": data["body"].tolist(),
+                "subreddit": data["subreddit"].tolist(),
+                "prompt": data["prompt"].tolist(),
+                "completion": data["completion"].tolist(),
+                "rule": data["rule"].tolist(),
             }
         )
 
@@ -608,15 +606,7 @@ class ChatEval(JigsawEval):
         # Save all predictions
         all_predictions = []
         for pred in predictions:
-            df = pd.DataFrame(
-                {
-                    "fold": pred["fold"],
-                    "true_label": pred["true_labels"],
-                    "predicted_label": pred["predictions"],
-                    "probability": pred["probabilities"],
-                    "rule": pred["rules"],
-                }
-            )
+            df = pd.DataFrame(pred)
             all_predictions.append(df)
 
         predictions_df = pd.concat(all_predictions, ignore_index=True)
@@ -710,15 +700,7 @@ class Qwen3EmbEval(JigsawEval):
         # Save all predictions
         all_predictions = []
         for pred in predictions:
-            df = pd.DataFrame(
-                {
-                    "fold": pred["fold"],
-                    "true_label": pred["true_labels"],
-                    "predicted_label": pred["predictions"],
-                    "probability": pred["probabilities"],
-                    "rule": pred["rules"],
-                }
-            )
+            df = pd.DataFrame(pred)
             all_predictions.append(df)
 
         predictions_df = pd.concat(all_predictions, ignore_index=True)
@@ -805,15 +787,7 @@ class E5BaseEval(JigsawEval):
         # Save all predictions
         all_predictions = []
         for pred in predictions:
-            df = pd.DataFrame(
-                {
-                    "fold": pred["fold"],
-                    "true_label": pred["true_labels"],
-                    "predicted_label": pred["predictions"],
-                    "probability": pred["probabilities"],
-                    "rule": pred["rules"],
-                }
-            )
+            df = pd.DataFrame(pred)
             all_predictions.append(df)
 
         predictions_df = pd.concat(all_predictions, ignore_index=True)
@@ -869,10 +843,6 @@ class RobertaEval(JigsawEval):
                 ranks,
                 valid_labels,
             )
-            val_df["preds"] = probs["rule_violation"]
-            val_df.to_csv(
-                fold_save_path + f"val_result_fold{fold}_roberta.csv"
-            )
             # Store results
             cv_results.append(
                 {
@@ -892,8 +862,12 @@ class RobertaEval(JigsawEval):
                     "fold": fold,
                     "true_labels": fold_results["true_labels"],
                     "predictions": fold_results["predictions"],
-                    "probabilities": fold_results["probabilities"],
-                    "rules": val_df["rule"].tolist(),
+                    "normalized_ranks": fold_results["probabilities"],
+                    "probabilities": probs["rule_violation"].tolist(),
+                    "body": val_df["body"].tolist(),
+                    "subreddit": val_df["subreddit"].tolist(),
+                    "input": val_df["input"].tolist(),
+                    "rule": val_df["rule"].tolist(),
                 }
             )
 
@@ -929,16 +903,8 @@ class RobertaEval(JigsawEval):
 
         # Save all predictions
         all_predictions = []
-        for fold_pred in fold_predictions:
-            fold_df = pd.DataFrame(
-                {
-                    "fold": fold_pred["fold"],
-                    "true_label": fold_pred["true_labels"],
-                    "predicted_label": fold_pred["predictions"],
-                    "probability": fold_pred["probabilities"],
-                    "rule": fold_pred["rules"],
-                }
-            )
+        for fold_pred_dict in fold_predictions:
+            fold_df = pd.DataFrame(fold_pred_dict)
             all_predictions.append(fold_df)
 
         predictions_df = pd.concat(all_predictions, ignore_index=True)
@@ -994,11 +960,6 @@ class DebertaEval(JigsawEval):
                 valid_labels,
             )
 
-            val_df["preds"] = probs["rule_violation"]
-            val_df.to_csv(
-                fold_save_path + f"val_result_fold{fold}_deberta.csv"
-            )
-
             # Store results
             cv_results.append(
                 {
@@ -1018,8 +979,13 @@ class DebertaEval(JigsawEval):
                     "fold": fold,
                     "true_labels": fold_results["true_labels"],
                     "predictions": fold_results["predictions"],
-                    "probabilities": fold_results["probabilities"],
-                    "rules": val_df["rule"].tolist(),
+                    "normalized_ranks": fold_results["probabilities"],
+                    "probabilities": probs["rule_violation"].tolist(),
+                    "body": val_df["body"].tolist(),
+                    "subreddit": val_df["subreddit"].tolist(),
+                    "input_text": val_df["input_text"].tolist(),
+                    "completion": val_df["completion"].tolist(),
+                    "rule": val_df["rule"].tolist(),
                 }
             )
 
@@ -1053,16 +1019,8 @@ class DebertaEval(JigsawEval):
 
         # Save all predictions
         all_predictions = []
-        for fold_pred in fold_predictions:
-            fold_df = pd.DataFrame(
-                {
-                    "fold": fold_pred["fold"],
-                    "true_label": fold_pred["true_labels"],
-                    "predicted_label": fold_pred["predictions"],
-                    "probability": fold_pred["probabilities"],
-                    "rule": fold_pred["rules"],
-                }
-            )
+        for fold_pred_dict in fold_predictions:
+            fold_df = pd.DataFrame(fold_pred_dict)
             all_predictions.append(fold_df)
 
         predictions_df = pd.concat(all_predictions, ignore_index=True)
@@ -1117,10 +1075,6 @@ class ModernBERTEval(JigsawEval):
                 ranks,
                 valid_labels,
             )
-            val_df["preds"] = probs["rule_violation"]
-            val_df.to_csv(
-                fold_save_path + f"val_result_fold{fold}_modernbert.csv"
-            )
 
             # Store results
             cv_results.append(
@@ -1141,8 +1095,13 @@ class ModernBERTEval(JigsawEval):
                     "fold": fold,
                     "true_labels": fold_results["true_labels"],
                     "predictions": fold_results["predictions"],
-                    "probabilities": fold_results["probabilities"],
-                    "rules": val_df["rule"].tolist(),
+                    "normalized_ranks": fold_results["probabilities"],
+                    "probabilities": probs["rule_violation"].tolist(),
+                    "body": val_df["body"].tolist(),
+                    "subreddit": val_df["subreddit"].tolist(),
+                    "input_text": val_df["input_text"].tolist(),
+                    "completion": val_df["completion"].tolist(),
+                    "rule": val_df["rule"].tolist(),
                 }
             )
 
@@ -1176,16 +1135,8 @@ class ModernBERTEval(JigsawEval):
 
         # Save all predictions
         all_predictions = []
-        for fold_pred in fold_predictions:
-            fold_df = pd.DataFrame(
-                {
-                    "fold": fold_pred["fold"],
-                    "true_label": fold_pred["true_labels"],
-                    "predicted_label": fold_pred["predictions"],
-                    "probability": fold_pred["probabilities"],
-                    "rule": fold_pred["rules"],
-                }
-            )
+        for fold_pred_dict in fold_predictions:
+            fold_df = pd.DataFrame(fold_pred_dict)
             all_predictions.append(fold_df)
 
         predictions_df = pd.concat(all_predictions, ignore_index=True)
