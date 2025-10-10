@@ -19,6 +19,10 @@ from jigsaw_rules.configs import (
 
 
 class DataframeFactory:
+    """
+    Factory to register getter functions for training datasets
+    """
+
     _builders = {}  # type: ignore
 
     @classmethod
@@ -37,6 +41,9 @@ class DataframeFactory:
 
 
 def cleaner(text):
+    """
+    Text normalization by removing url, email, phone number and whitespaces.
+    """
     return clean(
         text,
         fix_unicode=True,
@@ -298,7 +305,7 @@ def build_dataframe_instruct(dataframe=None, is_train=False):
 def build_dataframe_chat(dataframe=None, is_train=False):
     def build_prompt(row, tokenizer):
         text = (
-            f"\nr/{row['subreddit']}\n"
+            f"\nr/{row['subreddit']}\n"  # removing reliance from fine tuning
             f"Rule: {row['rule']}\n"
             "\n"
             f"1) {row['positive_example_1']}\n"

@@ -417,7 +417,7 @@ class InstructEval(JigsawEval):
             val_df = data.iloc[val_idx].reset_index(drop=True)
 
             # Initialize model for this fold
-            fold_save_path = self.lora_path + f"_fold{fold}"
+            fold_save_path = self.lora_path + f"_fold{fold}/"
 
             trainer = Instruct(
                 data_path=self.data_path,
@@ -448,6 +448,10 @@ class InstructEval(JigsawEval):
             fold_results = self.evaluate_model(
                 ranks,
                 valid_labels,
+            )
+            val_df["preds"] = probs["rule_violation"]
+            val_df.to_csv(
+                fold_save_path + f"val_result_fold{fold}_instruct.csv"
             )
 
             # Store results
@@ -549,6 +553,9 @@ class ChatEval(JigsawEval):
             valid_labels,
         )
 
+        data["preds"] = probs["rule_violation"]
+        data.to_csv(self.save_path + "val_result_chat.csv")
+
         # Store results
         results.append(
             {
@@ -647,6 +654,10 @@ class Qwen3EmbEval(JigsawEval):
             valid_labels,
         )
 
+        data["rule_violation_normalized"] = valid_labels
+        data["preds"] = probs["rule_violation"]
+        data.to_csv(self.save_path + "val_result_emb.csv")
+
         # Store results
         results.append(
             {
@@ -738,6 +749,10 @@ class E5BaseEval(JigsawEval):
         # Evaluate
         eval_results = self.evaluate_model(probs, valid_labels, 0)
 
+        data["rule_violation_normalized"] = valid_labels
+        data["preds"] = probs["rule_violation"]
+        data.to_csv(self.save_path + "val_result_e5.csv")
+
         # Store results
         results.append(
             {
@@ -828,7 +843,7 @@ class RobertaEval(JigsawEval):
             val_df = data.iloc[val_idx].reset_index(drop=True)
 
             # Initialize model for this fold
-            fold_save_path = self.save_path + f"_fold{fold}"
+            fold_save_path = self.save_path + f"_fold{fold}/"
 
             trainer = RobertaBase(
                 data_path=self.data_path,
@@ -854,7 +869,10 @@ class RobertaEval(JigsawEval):
                 ranks,
                 valid_labels,
             )
-
+            val_df["preds"] = probs["rule_violation"]
+            val_df.to_csv(
+                fold_save_path + f"val_result_fold{fold}_roberta.csv"
+            )
             # Store results
             cv_results.append(
                 {
@@ -950,7 +968,7 @@ class DebertaEval(JigsawEval):
             val_df = data.iloc[val_idx].reset_index(drop=True)
 
             # Initialize model for this fold
-            fold_save_path = self.save_path + f"_fold{fold}"
+            fold_save_path = self.save_path + f"_fold{fold}/"
 
             trainer = DebertaBase(
                 data_path=self.data_path,
@@ -974,6 +992,11 @@ class DebertaEval(JigsawEval):
             fold_results = self.evaluate_model(
                 ranks,
                 valid_labels,
+            )
+
+            val_df["preds"] = probs["rule_violation"]
+            val_df.to_csv(
+                fold_save_path + f"val_result_fold{fold}_deberta.csv"
             )
 
             # Store results
@@ -1069,7 +1092,7 @@ class ModernBERTEval(JigsawEval):
             val_df = data.iloc[val_idx].reset_index(drop=True)
 
             # Initialize model for this fold
-            fold_save_path = self.save_path + f"_fold{fold}"
+            fold_save_path = self.save_path + f"_fold{fold}/"
 
             trainer = ModernBERTBase(
                 data_path=self.data_path,
@@ -1093,6 +1116,10 @@ class ModernBERTEval(JigsawEval):
             fold_results = self.evaluate_model(
                 ranks,
                 valid_labels,
+            )
+            val_df["preds"] = probs["rule_violation"]
+            val_df.to_csv(
+                fold_save_path + f"val_result_fold{fold}_modernbert.csv"
             )
 
             # Store results
