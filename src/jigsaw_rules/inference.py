@@ -52,6 +52,9 @@ class InstructEngine(JigsawInference):
         """
         Run inference with single GPU
         """
+        # check for lora adapters
+        use_lora = InstructConfig.lora_path is not None
+
         llm = vllm.LLM(
             self.model_path,
             quantization="gptq",
@@ -63,8 +66,8 @@ class InstructEngine(JigsawInference):
             max_model_len=2836,
             disable_log_stats=True,
             enable_prefix_caching=True,
-            enable_lora=True,
-            max_lora_rank=64,
+            enable_lora=use_lora,
+            max_lora_rank=64 if use_lora else None,
         )
 
         tokenizer = llm.get_tokenizer()
@@ -77,17 +80,29 @@ class InstructEngine(JigsawInference):
         )
         texts = test_dataset["prompt"]
 
-        outputs = llm.generate(
-            texts,
-            vllm.SamplingParams(
-                skip_special_tokens=True,
-                max_tokens=1,
-                logits_processors=[mclp],
-                logprobs=2,
-            ),
-            use_tqdm=True,
-            lora_request=LoRARequest("default", 1, self.lora_path),
-        )
+        if use_lora:
+            outputs = llm.generate(
+                texts,
+                vllm.SamplingParams(
+                    skip_special_tokens=True,
+                    max_tokens=1,
+                    logits_processors=[mclp],
+                    logprobs=2,
+                ),
+                use_tqdm=True,
+                lora_request=LoRARequest("default", 1, self.lora_path),
+            )
+        else:
+            outputs = llm.generate(
+                texts,
+                vllm.SamplingParams(
+                    skip_special_tokens=True,
+                    max_tokens=1,
+                    logits_processors=[mclp],
+                    logprobs=2,
+                ),
+                use_tqdm=True,
+            )
 
         log_probs = [
             {
@@ -213,6 +228,8 @@ class ChatEngine(JigsawInference):
         """
         Run inference on given data using Model Parallelism
         """
+        # determine whether to use lora
+        use_lora = ChatConfig.lora_path is not None
 
         dataset = Dataset.from_pandas(data)
 
@@ -227,8 +244,8 @@ class ChatEngine(JigsawInference):
             max_model_len=2836,
             disable_log_stats=True,
             enable_prefix_caching=True,
-            enable_lora=True,
-            max_lora_rank=32,
+            enable_lora=use_lora,
+            max_lora_rank=32 if use_lora else None,
         )
 
         tokenizer = llm.get_tokenizer()
@@ -241,17 +258,29 @@ class ChatEngine(JigsawInference):
         )
         texts = dataset["prompt"]
 
-        outputs = llm.generate(
-            texts,
-            vllm.SamplingParams(
-                skip_special_tokens=True,
-                max_tokens=1,
-                logits_processors=[mclp],
-                logprobs=2,
-            ),
-            use_tqdm=True,
-            lora_request=LoRARequest("default", 1, self.lora_path),
-        )
+        if use_lora:
+            outputs = llm.generate(
+                texts,
+                vllm.SamplingParams(
+                    skip_special_tokens=True,
+                    max_tokens=1,
+                    logits_processors=[mclp],
+                    logprobs=2,
+                ),
+                use_tqdm=True,
+                lora_request=LoRARequest("default", 1, self.lora_path),
+            )
+        else:
+            outputs = llm.generate(
+                texts,
+                vllm.SamplingParams(
+                    skip_special_tokens=True,
+                    max_tokens=1,
+                    logits_processors=[mclp],
+                    logprobs=2,
+                ),
+                use_tqdm=True,
+            )
 
         logprobs = [
             {
