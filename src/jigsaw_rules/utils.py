@@ -14,6 +14,8 @@ from jigsaw_rules.configs import (
     E5Config,
     EmbeddingConfig,
     InstructConfig,
+    LlamaInstructConfig,
+    ModernBERTConfig,
     RobertaConfig,
 )
 
@@ -26,9 +28,12 @@ class DataframeFactory:
     _builders = {}  # type: ignore
 
     @classmethod
-    def register(cls, model_type):
+    def register(cls, *model_types):
         def wrapper(func):
-            cls._builders[model_type] = func  # register function
+            for model_type in model_types:
+                cls._builders[model_type] = (
+                    func  # register function for each type
+                )
             return func
 
         return wrapper
@@ -118,9 +123,10 @@ def get_dataframe_to_train(data_path, subset=None):
     if subset is None:
         test_dataset = pd.read_csv(f"{data_path}/test.csv")
     else:
+        test_dataset = pd.read_csv(f"{data_path}/test.csv")
         test_dataset = (
-            pd.read_csv(f"{data_path}/test.csv")
-            .sample(frac=subset, random_state=42)
+            test_dataset.groupby("rule", group_keys=False)
+            .apply(lambda x: x.sample(frac=subset, random_state=42))
             .reset_index(drop=True)
         )
 
@@ -295,6 +301,73 @@ def build_dataframe_instruct(dataframe=None, is_train=False):
             {
                 1: InstructConfig.positive_answer,
                 0: InstructConfig.negative_answer,
+            }
+        )
+
+    return dataframe
+
+
+@DataframeFactory.register(
+    LlamaInstructConfig.model_type
+)  # TODO : Input configs to manage different getters
+def build_dataframe_llamainstruct(dataframe=None, is_train=False):
+    def build_prompt(row):
+        return (
+            f"{LlamaInstructConfig.base_prompt}\n"
+            f"Subreddit: r/{row['subreddit']}\n"
+            f"Rule: {row['rule']}\n"
+            "Examples:\n"
+            f"1) {row['positive_example']}\n"
+            f"{LlamaInstructConfig.complete_phrase} Yes\n"
+            f"2) {row['negative_example']}\n"
+            f"{LlamaInstructConfig.complete_phrase} No\n"
+            "---\n"
+            f"Comment: {row['body']}\n"
+            f"{LlamaInstructConfig.complete_phrase}"
+        )
+
+    if dataframe is None:  # training
+        if not LlamaInstructConfig.use_subset:
+            dataframe = get_dataframe_to_train(LlamaInstructConfig.data_path)
+        else:
+            dataframe = get_dataframe_to_train(
+                LlamaInstructConfig.data_path,
+                LlamaInstructConfig.subset,
+            )
+
+    if is_train and LlamaInstructConfig.include_train:
+        train_df = pd.read_csv(f"{LlamaInstructConfig.data_path}/train.csv")
+        train_df["positive_example"] = np.where(
+            np.random.rand(len(train_df)) < 0.5,
+            train_df["positive_example_1"],
+            train_df["positive_example_2"],
+        )
+        train_df["negative_example"] = np.where(
+            np.random.rand(len(train_df)) < 0.5,
+            train_df["negative_example_1"],
+            train_df["negative_example_2"],
+        )
+        train_df.drop(
+            columns=[
+                "positive_example_1",
+                "positive_example_2",
+                "negative_example_1",
+                "negative_example_2",
+            ],
+            inplace=True,
+        )
+        dataframe = pd.concat([dataframe, train_df], ignore_index=True)
+
+    dataframe["prompt"] = dataframe.apply(build_prompt, axis=1)
+
+    if LlamaInstructConfig.clean_text:
+        dataframe["prompt"] = dataframe["prompt"].apply(cleaner)
+
+    if "rule_violation" in dataframe:
+        dataframe["completion"] = dataframe["rule_violation"].map(
+            {
+                1: LlamaInstructConfig.positive_answer,
+                0: LlamaInstructConfig.negative_answer,
             }
         )
 
@@ -649,7 +722,9 @@ def build_dataframe_bge(dataframe=None, is_train=False):
     return dataframe
 
 
-@DataframeFactory.register(DebertaConfig.model_type)
+@DataframeFactory.register(
+    DebertaConfig.model_type, ModernBERTConfig.model_type
+)
 def build_dataframe_deberta(dataframe=None, is_train=False):
     def build_prompt(row):
         rule = row["rule"]

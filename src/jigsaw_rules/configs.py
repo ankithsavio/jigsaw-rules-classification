@@ -27,6 +27,23 @@ class InstructConfig(BaseConfig):
     include_train = True
 
 
+class LlamaInstructConfig(BaseConfig):
+    model_type = "llama_instruct"
+    data_path = "/kaggle/input/jigsaw-agile-community-rules/"
+    model_path = "/kaggle/input/llama-3.2/transformers/3b-instruct/1"
+    lora_path = "/kaggle/working/llama-instruct/"
+    positive_answer = "Yes"
+    negative_answer = "No"
+    complete_phrase = "Answer:"
+    base_prompt = """You are given a comment from reddit and a rule. Your task is to classify whether the comment violates the rule. Only respond Yes/No."""
+    clean_text = False
+    out_file = "submission_instruct.csv"
+    test_file = None  # inference on different file
+    use_subset = True
+    subset = 0.5
+    include_train = True
+
+
 class ChatConfig(BaseConfig):
     model_type = "chat"
     data_path = "/kaggle/input/jigsaw-agile-community-rules/"

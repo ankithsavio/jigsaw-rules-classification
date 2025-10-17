@@ -6,6 +6,7 @@ import multiprocessing as mp
 import os
 import random
 
+import numpy as np
 import pandas as pd  # type: ignore
 import torch
 import vllm
@@ -20,6 +21,7 @@ from jigsaw_rules.configs import (
     ChatConfig,
     DebertaConfig,
     InstructConfig,
+    LlamaInstructConfig,
     ModernBERTConfig,
     RobertaConfig,
 )
@@ -28,6 +30,7 @@ from jigsaw_rules.utils import (
     build_dataframe_chat,
     build_dataframe_deberta,
     build_dataframe_instruct,
+    build_dataframe_llamainstruct,
     build_dataframe_roberta,
 )
 
@@ -198,6 +201,174 @@ class InstructEngine(JigsawInference):
         submission = predictions[
             ["row_id", InstructConfig.positive_answer]
         ].rename(columns={InstructConfig.positive_answer: "rule_violation"})
+
+        submission.to_csv(self.save_path, index=False)
+        print(f"Saved to {self.save_path}")
+        if return_preds:
+            return submission[["rule_violation"]]
+
+    def run(self):
+        """
+        Run inference on test data
+        """
+        test_dataframe = self.get_dataset()
+        self.inference_with_data(test_dataframe)
+
+
+class LlamaInstructEngine(InstructEngine):
+    """
+    Manual DDP as accelerate doesnt work well with vLLM
+    """
+
+    def run_subset_device(self, test_dataset):
+        """
+        Run inference with single GPU
+        """
+        # check for lora adapters
+        use_lora = LlamaInstructConfig.lora_path is not None
+
+        llm = vllm.LLM(
+            self.model_path,
+            quantization=None,
+            tensor_parallel_size=1,
+            gpu_memory_utilization=0.98,
+            trust_remote_code=True,
+            dtype="half",
+            enforce_eager=True,
+            max_model_len=2048,
+            disable_log_stats=True,
+            enable_prefix_caching=True,
+            enable_lora=True,
+            max_lora_rank=64,
+        )
+
+        tokenizer = llm.get_tokenizer()
+        mclp = MultipleChoiceLogitsProcessor(
+            tokenizer,  # type: ignore
+            choices=[
+                LlamaInstructConfig.positive_answer,
+                LlamaInstructConfig.negative_answer,
+            ],
+        )
+        texts = test_dataset["prompt"]
+
+        if use_lora:
+            outputs = llm.generate(
+                texts,
+                vllm.SamplingParams(
+                    skip_special_tokens=True,
+                    max_tokens=1,
+                    logits_processors=[mclp],
+                    logprobs=2,
+                ),
+                use_tqdm=True,
+                lora_request=LoRARequest("lora1", 1, self.lora_path),
+            )
+        else:
+            outputs = llm.generate(
+                texts,
+                vllm.SamplingParams(
+                    skip_special_tokens=True,
+                    max_tokens=1,
+                    logits_processors=[mclp],
+                    logprobs=2,
+                ),
+                use_tqdm=True,
+            )
+
+        probs = [
+            {
+                lp.decoded_token: np.exp(lp.logprob)
+                for lp in out.outputs[0].logprobs[0].values()  # type: ignore
+            }
+            for out in outputs
+        ]
+        predictions = pd.DataFrame(probs)[
+            [
+                LlamaInstructConfig.positive_answer,
+                LlamaInstructConfig.negative_answer,
+            ]
+        ]
+        predictions["row_id"] = test_dataset["row_id"]
+
+        return predictions
+
+    def get_dataset(self):
+        """
+        get test data
+        """
+        if LlamaInstructConfig.test_file is None:
+            dataframe = pd.read_csv(f"{self.data_path}/test.csv")
+        else:
+            dataframe = pd.read_csv(LlamaInstructConfig.test_file)
+
+        # randomly selected examples
+        dataframe["positive_example"] = dataframe.apply(
+            lambda row: random.choice(
+                [row["positive_example_1"], row["positive_example_2"]]
+            ),
+            axis=1,
+        )
+        dataframe["negative_example"] = dataframe.apply(
+            lambda row: random.choice(
+                [row["negative_example_1"], row["negative_example_2"]]
+            ),
+            axis=1,
+        )
+        dataframe = dataframe.drop(
+            columns=[
+                "positive_example_1",
+                "positive_example_2",
+                "negative_example_1",
+                "negative_example_2",
+            ],
+            errors="ignore",
+        )
+        return dataframe
+
+    def inference_with_data(self, data, return_preds=False):
+        """
+        Run inference on given data on 2x GPUs
+        """
+        # slice data
+        mid = len(data) // 2
+        df0 = data.iloc[:mid].reset_index(drop=True)
+        df1 = data.iloc[mid:].reset_index(drop=True)
+        df0 = Dataset.from_pandas(build_dataframe_llamainstruct(df0))
+        df1 = Dataset.from_pandas(build_dataframe_llamainstruct(df1))
+        manager = mp.Manager()
+        return_dict = manager.dict()
+
+        # Two processes in parallel
+        p0 = mp.Process(target=self.worker, args=(0, df0, return_dict))
+        p1 = mp.Process(target=self.worker, args=(1, df1, return_dict))
+        p0.start()
+        p1.start()
+        p0.join()
+        p1.join()
+
+        # merge results
+        predictions = pd.concat(
+            [return_dict[0], return_dict[1]], ignore_index=True
+        )
+        predictions[
+            [
+                LlamaInstructConfig.positive_answer,
+                LlamaInstructConfig.negative_answer,
+            ]
+        ] = predictions[
+            [
+                LlamaInstructConfig.positive_answer,
+                LlamaInstructConfig.negative_answer,
+            ]
+        ].apply(lambda x: softmax(x.values), axis=1, result_type="expand")
+
+        # build submission
+        submission = predictions[
+            ["row_id", LlamaInstructConfig.positive_answer]
+        ].rename(
+            columns={LlamaInstructConfig.positive_answer: "rule_violation"}
+        )
 
         submission.to_csv(self.save_path, index=False)
         print(f"Saved to {self.save_path}")
@@ -561,6 +732,14 @@ if __name__ == "__main__":
             model_path=InstructConfig.model_path,
             lora_path=InstructConfig.lora_path,
             save_path=InstructConfig.out_file,
+        )
+        inference.run()
+    elif args.type == LlamaInstructConfig.model_type:
+        inference = LlamaInstructEngine(
+            data_path=LlamaInstructConfig.data_path,
+            model_path=LlamaInstructConfig.model_path,
+            lora_path=LlamaInstructConfig.lora_path,
+            save_path=LlamaInstructConfig.out_file,
         )
         inference.run()
     elif args.type == ChatConfig.model_type:

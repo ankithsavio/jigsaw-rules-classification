@@ -13,6 +13,7 @@ from jigsaw_rules.configs import (
     DebertaConfig,
     E5Config,
     InstructConfig,
+    LlamaInstructConfig,
     ModernBERTConfig,
     RobertaConfig,
 )
@@ -95,6 +96,96 @@ class Instruct(JigsawTrainer):
         Run Trainer on data determined by Config.data_path
         """
         dataframe = get_train_dataframe(InstructConfig.model_type)
+        self.train_with_data(dataframe)
+
+
+class LlamaInstruct(JigsawTrainer):
+    def train_with_data(self, data):
+        """
+        Run Trainer on data
+        """
+        import torch
+        from peft import LoraConfig
+        from transformers import (
+            AutoModelForCausalLM,
+            AutoTokenizer,
+            BitsAndBytesConfig,
+        )
+        from transformers.utils.import_utils import is_torch_bf16_gpu_available
+        from trl import SFTConfig, SFTTrainer  # type: ignore
+
+        train_dataset = Dataset.from_pandas(data)
+
+        lora_config = LoraConfig(
+            r=64,
+            lora_alpha=128,
+            lora_dropout=0.1,
+            bias="none",
+            target_modules=[
+                "q_proj",
+                "k_proj",
+                "v_proj",
+                "o_proj",
+                "gate_proj",
+                "up_proj",
+                "down_proj",
+            ],
+            task_type="CAUSAL_LM",
+        )
+
+        training_args = SFTConfig(
+            num_train_epochs=1,
+            per_device_train_batch_size=4,
+            gradient_accumulation_steps=4,
+            optim="paged_adamw_8bit",
+            learning_rate=1e-4,
+            weight_decay=0.01,
+            max_grad_norm=1.0,
+            lr_scheduler_type="cosine",
+            warmup_ratio=0.03,
+            bf16=is_torch_bf16_gpu_available(),
+            fp16=not is_torch_bf16_gpu_available(),
+            dataloader_pin_memory=True,
+            gradient_checkpointing=True,
+            gradient_checkpointing_kwargs={"use_reentrant": False},
+            save_strategy="no",
+            report_to="none",
+            completion_only_loss=True,
+            packing=False,
+            remove_unused_columns=False,
+        )
+
+        model = AutoModelForCausalLM.from_pretrained(
+            self.model_path,
+            quantization_config=BitsAndBytesConfig(
+                load_in_4bit=True,
+                bnb_4bit_quant_type="nf4",
+                bnb_4bit_compute_dtype=torch.bfloat16,
+                bnb_4bit_use_double_quant=True,
+            ),
+            device_map="balanced_low_0",
+            trust_remote_code=True,
+            use_cache=False,
+        )
+
+        tokenizer = AutoTokenizer.from_pretrained(self.model_path)
+        tokenizer.pad_token = tokenizer.eos_token
+
+        trainer = SFTTrainer(
+            model=model,
+            processing_class=tokenizer,
+            args=training_args,
+            train_dataset=train_dataset,
+            peft_config=lora_config,
+        )
+        trainer.train()
+        trainer.save_model(self.save_path)
+
+    def run(self):
+        """
+        Run Trainer on data determined by Config.data_path
+        """
+        dataframe = get_train_dataframe(LlamaInstructConfig.model_type)
         self.train_with_data(dataframe)
 
 
@@ -403,7 +494,7 @@ class ModernBERTBase(JigsawTrainer):
         """
         Run Trainer on data determined by Config.data_path
         """
-        dataframe = get_train_dataframe(DebertaConfig.model_type)
+        dataframe = get_train_dataframe(ModernBERTConfig.model_type)
         self.train_with_data(dataframe)
 
 
@@ -420,6 +511,13 @@ if __name__ == "__main__":
             data_path=InstructConfig.data_path,
             model_path=InstructConfig.model_path,
             save_path=InstructConfig.lora_path,
+        )
+        trainer.run()
+    elif args.type == LlamaInstructConfig.model_type:
+        trainer = LlamaInstruct(
+            data_path=LlamaInstructConfig.data_path,
+            model_path=LlamaInstructConfig.model_path,
+            save_path=LlamaInstructConfig.lora_path,
         )
         trainer.run()
     elif args.type == RobertaConfig.model_type:
